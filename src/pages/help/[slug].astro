@@ -1,0 +1,32 @@
+﻿---
+import Layout from '../../layouts/Layout.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const helpArticles = await getCollection('help');
+  return helpArticles.map(article => ({
+    params: { slug: article.id },
+    props: { article },
+  }));
+}
+
+const { article } = Astro.props;
+const { Content } = await render(article);
+---
+
+<Layout title={article.data.title + " - Help Center"} description={article.data.description}>
+	<article class="max-w-3xl mx-auto px-6 py-20 bg-white border border-slate-200/80 rounded-2xl shadow-xs mt-8">
+		<a href="/help" class="text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors no-underline block mb-8 font-sans">â† Back to Help Center</a>
+		
+		<header class="border-b border-slate-100 pb-8 mb-12">
+			<span class="text-xs text-blue-600 uppercase tracking-wider font-semibold block mb-2 font-sans">{article.data.category}</span>
+			<h1 class="text-4xl md:text-5xl font-bold font-display tracking-tight text-slate-900 mb-4">{article.data.title}</h1>
+			<p class="text-lg text-slate-500 mb-0 font-sans">{article.data.description}</p>
+			{article.data.lastUpdated && <span class="text-xs text-slate-400 block mt-4 font-mono">Last Updated: {article.data.lastUpdated}</span>}
+		</header>
+		
+		<div class="prose prose-slate max-w-none prose-h2:font-display prose-h2:text-slate-800 prose-p:text-slate-600 prose-a:text-blue-600 prose-strong:text-slate-900 prose-li:text-slate-600 font-sans">
+			<Content />
+		</div>
+	</article>
+</Layout>

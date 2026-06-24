@@ -1,0 +1,33 @@
+﻿---
+import Layout from '../../layouts/Layout.astro';
+const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
+---
+
+<Layout title="ERP Software for SME Manufacturers" description="Optimize manufacturing resources, manage BOMs, warehouse inventory, and invoice templates.">
+	<section class="max-w-4xl mx-auto px-6 py-20 text-center">
+		<h1 class="text-4xl md:text-6xl font-bold font-display mb-6 text-slate-900">SME Manufacturing ERP</h1>
+		<p class="text-slate-500 text-lg md:text-xl max-w-xl mx-auto mb-12 font-sans leading-relaxed">Unify Bill of Materials (BOM), production tracking, multi-warehouse raw materials, and invoice generation in a single platform.</p>
+		<a href={appUrl + "/login"} class="inline-block px-8 py-4 rounded-full bg-blue-600 hover:bg-blue-700 font-semibold text-lg hover:scale-102 transition-all no-underline text-white shadow-lg shadow-blue-500/20 font-sans">
+			Start Free Trial
+		</a>
+	</section>
+	
+	<section class="py-16 px-6 bg-white border-t border-b border-slate-200/80">
+		<div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+			<div>
+				<h2 class="text-3xl font-bold font-display mb-4 text-slate-900">Streamline Production Workflows</h2>
+				<p class="text-slate-500 leading-relaxed mb-6 font-sans">Manage assemblies and inventories across multiple production routes with complete accuracy.</p>
+				<ul class="list-none p-0 flex flex-col gap-3 text-slate-700 font-sans">
+					<li class="flex items-center gap-2">âœ“ Multi-level Bill of Materials (BOM) setup</li>
+					<li class="flex items-center gap-2">âœ“ Raw material checks & auto-deduction on execution</li>
+					<li class="flex items-center gap-2">âœ“ Batch & serial number tracking</li>
+					<li class="flex items-center gap-2">âœ“ Integrated sales orders & quotes</li>
+				</ul>
+			</div>
+			<div class="p-8 rounded-2xl bg-slate-50 border border-slate-200/80">
+				<h3 class="text-xl font-bold font-display mb-4 text-blue-600">Prevent Material Bottlenecks</h3>
+				<p class="text-sm text-slate-500 leading-relaxed font-sans">Configure automated safety stock limits for key materials. When raw materials dip below limits, managers receive notifications to trigger procurement cycles instantly.</p>
+			</div>
+		</div>
+	</section>
+</Layout>
