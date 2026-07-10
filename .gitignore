@@ -1,5 +1,8 @@
 # build output
 dist/
+
+# turbo
+.turbo/
 # generated types
 .astro/
 

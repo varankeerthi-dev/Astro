@@ -1,17 +1,419 @@
+﻿---
+import Layout from '../layouts/Layout.astro';
+const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 ---
 
----
+<Layout title="All-In-One SME ERP Software">
+	<!-- Hero Section -->
+	<section class="relative min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-32 pb-16 overflow-hidden bg-white">
+		<!-- Soft background glow -->
+		<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse-slow"></div>
+		
+		<div class="max-w-4xl mx-auto flex flex-col items-center">
+			<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 mb-6 text-xs text-blue-700 font-semibold tracking-wide uppercase font-sans">
+				All-in-One ERP Solution
+			</div>
+			
+			<h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 font-display text-slate-900 leading-[1.1] max-w-3xl">
+				All - in - one <br/>
+				<span class="text-blue-600">ERP for SMEs</span>
+			</h1>
+			
+			<p class="text-base md:text-lg text-slate-500 max-w-xl leading-relaxed mb-10 font-sans">
+				Manage your entire business in one place. CRM, Projects, Inventory, Accounting, HR and more â€” all integrated, all simple.
+			</p>
+			
+			<div class="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-md mb-8">
+				<a href={appUrl + "/login"} class="px-8 py-3.5 rounded-full bg-blue-600 text-white font-semibold text-base hover:bg-blue-700 hover:scale-102 transition-all shadow-md shadow-blue-500/20 no-underline font-sans flex items-center justify-center gap-2">
+					Start Free Trial
+					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2.5} d="M9 5l7 7-7 7" /></svg>
+				</a>
+				<a href={appUrl + "/login"} class="px-8 py-3.5 rounded-full bg-white border border-slate-200 text-slate-700 font-semibold text-base hover:bg-slate-50 transition-all no-underline font-sans flex items-center justify-center gap-2">
+					Book a Demo
+					<!-- Play icon -->
+					<svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+				</a>
+			</div>
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+			<div class="flex flex-wrap gap-x-8 gap-y-3 justify-center items-center text-xs text-slate-500 font-medium">
+				<span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Trusted by 500+ SMEs</span>
+				<span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> No Credit Card Required</span>
+				<span class="flex items-center gap-1.5"><svg class="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> Setup in Minutes</span>
+			</div>
+		</div>
+	</section>
+
+	<!-- High-fidelity Dashboard Mockup -->
+	<section class="px-6 pb-24 bg-white">
+		<div class="max-w-5xl mx-auto">
+			<!-- Browser Card Mockup -->
+			<div class="rounded-2xl border border-slate-200/80 shadow-2xl bg-white overflow-hidden">
+				<!-- Mock Browser Header -->
+				<div class="px-6 py-4 bg-slate-50 border-b border-slate-200/60 flex items-center gap-2">
+					<span class="w-3 h-3 rounded-full bg-red-400"></span>
+					<span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+					<span class="w-3 h-3 rounded-full bg-green-400"></span>
+					<span class="ml-4 text-xs text-slate-400 font-mono font-medium tracking-wide">app.originerp.com/dashboard</span>
+				</div>
+				
+				<!-- Mock App Interface Layout -->
+				<div class="flex min-h-[500px] flex-col md:flex-row">
+					<!-- App Sidebar (Dark Slate) -->
+					<aside class="w-full md:w-56 bg-slate-900 text-slate-400 p-5 flex flex-col gap-6">
+						<div class="flex items-center gap-2 px-2">
+							<div class="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm text-white">O</div>
+							<span class="text-white font-bold text-sm font-display tracking-tight">Origin-ERP</span>
+						</div>
+						<nav class="flex flex-col gap-1.5">
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-600/10 text-blue-400 font-semibold text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span> Dashboard</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> CRM</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Sales</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Projects</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Inventory</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Purchases</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Accounting</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> HR & Payroll</a>
+							<a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-all text-xs no-underline"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> Reports</a>
+						</nav>
+					</aside>
+					
+					<!-- Main Content Panel (Light Mode) -->
+					<div class="flex-1 bg-white p-6 md:p-8 flex flex-col gap-6">
+						<!-- Dashboard Top Panel -->
+						<div class="flex justify-between items-center border-b border-slate-100 pb-4">
+							<h3 class="text-lg font-bold text-slate-800 font-display">Dashboard</h3>
+							<div class="flex items-center gap-4">
+								<span class="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs text-slate-500 font-semibold font-sans">U</span>
+							</div>
+						</div>
+						
+						<!-- Dashboard Metrics Grid -->
+						<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+							<!-- Revenue -->
+							<div class="p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col gap-1.5 bg-slate-50/50">
+								<span class="text-xs text-slate-400 font-medium">Total Revenue</span>
+								<span class="text-base md:text-lg font-bold text-slate-800 font-display">â‚¹32,45,000</span>
+								<span class="text-xs text-emerald-500 font-semibold flex items-center gap-0.5">â†‘ 12.5% <span class="text-slate-400 font-normal">last month</span></span>
+							</div>
+							<!-- Orders -->
+							<div class="p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col gap-1.5 bg-slate-50/50">
+								<span class="text-xs text-slate-400 font-medium">Sales Orders</span>
+								<span class="text-base md:text-lg font-bold text-slate-800 font-display">823</span>
+								<span class="text-xs text-emerald-500 font-semibold flex items-center gap-0.5">â†‘ 8.4% <span class="text-slate-400 font-normal">last month</span></span>
+							</div>
+							<!-- Projects -->
+							<div class="p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col gap-1.5 bg-slate-50/50">
+								<span class="text-xs text-slate-400 font-medium">Active Projects</span>
+								<span class="text-base md:text-lg font-bold text-slate-800 font-display">24</span>
+								<span class="text-xs text-emerald-500 font-semibold flex items-center gap-0.5">â†‘ 14.2% <span class="text-slate-400 font-normal font-sans">last month</span></span>
+							</div>
+							<!-- Outstanding -->
+							<div class="p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col gap-1.5 bg-slate-50/50">
+								<span class="text-xs text-slate-400 font-medium">Outstanding Amount</span>
+								<span class="text-base md:text-lg font-bold text-slate-800 font-display">â‚¹6,25,000</span>
+								<span class="text-xs text-rose-500 font-semibold flex items-center gap-0.5">â†“ 5.7% <span class="text-slate-400 font-normal">last month</span></span>
+							</div>
+						</div>
+						
+						<!-- Dashboard Chart + Feed Section -->
+						<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-2">
+							<!-- Line Chart Area -->
+							<div class="lg:col-span-2 p-5 rounded-xl border border-slate-100 flex flex-col gap-4">
+								<div class="flex justify-between items-center">
+									<h4 class="text-sm font-bold text-slate-800 font-display">Revenue Overview</h4>
+									<span class="text-xs text-slate-400 font-sans font-medium">This Year</span>
+								</div>
+								<div class="h-44 w-full relative flex items-end">
+									<!-- Custom SVG Chart Line & Area -->
+									<svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+										<defs>
+											<linearGradient id="chart-glow" x1="0" y1="0" x2="0" y2="1">
+												<stop offset="0%" stop-color="#2563eb" stop-opacity="0.15" />
+												<stop offset="100%" stop-color="#2563eb" stop-opacity="0" />
+											</linearGradient>
+										</defs>
+										<path d="M 0,100 L 0,80 Q 20,70 30,55 T 60,35 T 80,45 T 100,20 L 100,100 Z" fill="url(#chart-glow)"></path>
+										<path d="M 0,80 Q 20,70 30,55 T 60,35 T 80,45 T 100,20" fill="none" stroke="#2563eb" stroke-width="2"></path>
+									</svg>
+									
+									<div class="w-full flex justify-between text-[10px] text-slate-400 font-mono mt-auto pt-2 border-t border-slate-100 z-10">
+										<span>Jan</span><span>Mar</span><span>May</span><span>Jul</span><span>Sep</span><span>Nov</span><span>Dec</span>
+									</div>
+								</div>
+							</div>
+							
+							<!-- Recent Feed -->
+							<div class="p-5 rounded-xl border border-slate-100 flex flex-col gap-4">
+								<h4 class="text-sm font-bold text-slate-800 font-display">Recent Activities</h4>
+								<div class="flex flex-col gap-3 text-xs leading-tight">
+									<div class="flex gap-2.5 items-start">
+										<div class="w-4 h-4 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-[10px] text-blue-500 font-bold">R</div>
+										<div>
+											<p class="font-semibold text-slate-700 m-0">New Quotation created</p>
+											<span class="text-[10px] text-slate-400 font-sans">2 mins ago</span>
+										</div>
+									</div>
+									<div class="flex gap-2.5 items-start">
+										<div class="w-4 h-4 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-[10px] text-orange-500 font-bold">P</div>
+										<div>
+											<p class="font-semibold text-slate-700 m-0">Project Alpha updated</p>
+											<span class="text-[10px] text-slate-400 font-sans">15 mins ago</span>
+										</div>
+									</div>
+									<div class="flex gap-2.5 items-start">
+										<div class="w-4 h-4 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[10px] text-emerald-500 font-bold">I</div>
+										<div>
+											<p class="font-semibold text-slate-700 m-0">Invoice INV-1024 paid</p>
+											<span class="text-[10px] text-slate-400 font-sans">1 hour ago</span>
+										</div>
+									</div>
+									<div class="flex gap-2.5 items-start">
+										<div class="w-4 h-4 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center text-[10px] text-rose-500 font-bold">S</div>
+										<div>
+											<p class="font-semibold text-slate-700 m-0">Stock level low: ITEM-102</p>
+											<span class="text-[10px] text-slate-400 font-sans">2 hours ago</span>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Devices indicator -->
+			<div class="mt-8 flex justify-center items-center gap-6 text-xs text-slate-400 font-medium">
+				<span>Works seamlessly across all your devices:</span>
+				<span class="flex items-center gap-1"><span class="text-sm">ðŸ’»</span> Web</span>
+				<span class="flex items-center gap-1"><span class="text-sm">ðŸ“±</span> Mobile</span>
+				<span class="flex items-center gap-1"><span class="text-sm">ðŸ“</span> Tablet</span>
+			</div>
+		</div>
+	</section>
+
+	<!-- Interactive Module Wheel Selector Section -->
+	<section class="py-24 px-6 bg-slate-50/50 border-t border-b border-slate-200/80">
+		<div class="max-w-6xl mx-auto flex flex-col items-center">
+			<div class="text-center mb-16">
+				<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 mb-4 text-xs text-blue-700 font-semibold uppercase font-sans">
+					All Modules. One Platform
+				</div>
+				<h2 class="text-3xl md:text-5xl font-bold font-display text-slate-900 mb-4 tracking-tight">
+					Everything you need,<br/>All in <span class="text-blue-600 font-display">one ERP</span>
+				</h2>
+				<p class="text-slate-500 max-w-lg mx-auto font-sans leading-relaxed">Powerful modules that work together seamlessly to run your entire business.</p>
+			</div>
+			
+			<!-- Interactive Wheel Container -->
+			<div class="relative w-full max-w-4xl min-h-[500px] flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-0 mt-8">
+				
+				<!-- Desktop Circular Wheel (Shown on LG screens) -->
+				<div class="relative w-[480px] h-[480px] hidden lg:block flex-shrink-0">
+					<!-- Ray connections SVG background -->
+					<svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100">
+						<circle cx="50" cy="50" r="30" fill="none" stroke="#2563eb" stroke-dasharray="1 3" stroke-width="0.5" class="opacity-40"></circle>
+						<!-- Ray lines from center to outer cards -->
+						<line x1="50" y1="50" x2="50" y2="16" stroke="#e2e8f0" stroke-width="0.5"></line>
+						<line x1="50" y1="50" x2="74" y2="26" stroke="#e2e8f0" stroke-width="0.5"></line>
+						<line x1="50" y1="50" x2="84" y2="50" stroke="#e2e8f0" stroke-width="0.5"></line>
+						<line x1="50" y1="50" x2="74" y2="74" stroke="#e2e8f0" stroke-width="0.5"></line>
+						<line x1="50" y1="50" x2="50" y2="84" stroke="#e2e8f0" stroke-width="0.5"></line>
+						<line x1="50" y1="50" x2="26" y2="74" stroke="#e2e8f0" stroke-width="0.5"></line>
+						<line x1="50" y1="50" x2="16" y2="50" stroke="#e2e8f0" stroke-width="0.5"></line>
+						<line x1="50" y1="50" x2="26" y2="26" stroke="#e2e8f0" stroke-width="0.5"></line>
+					</svg>
+
+					<!-- Center Brand Logo Circle -->
+					<div class="absolute top-[200px] left-[200px] w-20 h-20 rounded-full bg-blue-600 flex flex-col items-center justify-center shadow-xl shadow-blue-500/30 border-4 border-white z-20 text-center select-none">
+						<span class="text-white font-black text-xl font-display leading-none">Origin</span>
+						<span class="text-white/80 font-bold text-[8px] uppercase tracking-wide leading-none mt-1">ERP</span>
+					</div>
+
+					<!-- Surrounding Interactive Buttons (positioned absolutely in a circle) -->
+					<!-- CRM -->
+					<button class="module-btn absolute top-[10px] left-[190px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-emerald-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1 active-card" data-title="CRM" data-desc="Centralize client contacts, sales pipelines, deals, requirements, and communication logs in one easy-to-use workspace." data-color="text-emerald-600" data-bg="bg-emerald-50 border-emerald-200">
+						<div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm font-bold">ðŸ¤</div>
+						<span class="text-xs font-bold text-slate-800">CRM</span>
+					</button>
+
+					<!-- Projects -->
+					<button class="module-btn absolute top-[70px] left-[320px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-orange-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1" data-title="Projects" data-desc="Plan project phases, schedule site tasks, log daily engineer progress reports, and verify milestone billing outputs." data-color="text-orange-600" data-bg="bg-orange-50 border-orange-200">
+						<div class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-sm font-bold">ðŸ“‹</div>
+						<span class="text-xs font-bold text-slate-800">Projects</span>
+					</button>
+
+					<!-- Inventory -->
+					<button class="module-btn absolute top-[200px] left-[370px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-purple-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1" data-title="Inventory" data-desc="Track items, raw materials, and stock balances. Manage multiple warehouses and handle internal material site requests." data-color="text-purple-600" data-bg="bg-purple-50 border-purple-200">
+						<div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-sm font-bold">ðŸ“¦</div>
+						<span class="text-xs font-bold text-slate-800">Inventory</span>
+					</button>
+
+					<!-- Purchases -->
+					<button class="module-btn absolute top-[330px] left-[320px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-amber-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1" data-title="Purchases" data-desc="Coordinate with vendors, raise purchase orders, record goods receipts, and approve incoming supplier bills." data-color="text-amber-600" data-bg="bg-amber-50 border-amber-200">
+						<div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-sm font-bold">ðŸ›’</div>
+						<span class="text-xs font-bold text-slate-800">Purchases</span>
+					</button>
+
+					<!-- Accounting -->
+					<button class="module-btn absolute top-[390px] left-[190px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-teal-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1" data-title="Accounting" data-desc="Manage customer ledgers, generate automated invoice files, calculate GST taxes, and track outstanding balances." data-color="text-teal-600" data-bg="bg-teal-50 border-teal-200">
+						<div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-sm font-bold">ðŸ’°</div>
+						<span class="text-xs font-bold text-slate-800">Accounting</span>
+					</button>
+
+					<!-- HR & Payroll -->
+					<button class="module-btn absolute top-[330px] left-[60px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-rose-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1" data-title="HR & Payroll" data-desc="Log daily site labor attendance, manage subcontractor wage cards, and run monthly payroll approvals." data-color="text-rose-600" data-bg="bg-rose-50 border-rose-200">
+						<div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-sm font-bold">ðŸ‘¥</div>
+						<span class="text-xs font-bold text-slate-800">HR & Payroll</span>
+					</button>
+
+					<!-- Reports -->
+					<button class="module-btn absolute top-[200px] left-[10px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-cyan-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1" data-title="Reports" data-desc="Generate custom reports on stock usage, project profit margins, client ledgers, and subcontractor payments." data-color="text-cyan-600" data-bg="bg-cyan-50 border-cyan-200">
+						<div class="w-8 h-8 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center text-sm font-bold">ðŸ“ˆ</div>
+						<span class="text-xs font-bold text-slate-800">Reports</span>
+					</button>
+
+					<!-- Sales / Billing -->
+					<button class="module-btn absolute top-[70px] left-[60px] w-24 p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-500 hover:shadow-lg transition-all z-10 flex flex-col items-center gap-1" data-title="Sales" data-desc="Quickly compile professional estimates, calculate pricing markups, set client discounts, and issue invoices." data-color="text-blue-600" data-bg="bg-blue-50 border-blue-200">
+						<div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold">âš¡</div>
+						<span class="text-xs font-bold text-slate-800">Sales</span>
+					</button>
+				</div>
+				
+				<!-- Mobile Grid (Shown on smaller screens) -->
+				<div class="w-full grid grid-cols-2 md:grid-cols-4 gap-4 lg:hidden">
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 active-mobile-card text-center" data-title="CRM" data-desc="Centralize client contacts, sales pipelines, deals, requirements, and communication logs in one easy-to-use workspace." data-color="text-emerald-600">
+						<div class="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-base">ðŸ¤</div>
+						<span class="text-sm font-bold text-slate-800">CRM</span>
+					</button>
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 text-center" data-title="Projects" data-desc="Plan project phases, schedule site tasks, log daily engineer progress reports, and verify milestone billing outputs." data-color="text-orange-600">
+						<div class="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-base">ðŸ“‹</div>
+						<span class="text-sm font-bold text-slate-800">Projects</span>
+					</button>
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 text-center" data-title="Inventory" data-desc="Track items, raw materials, and stock balances. Manage multiple warehouses and handle internal material site requests." data-color="text-purple-600">
+						<div class="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-base">ðŸ“¦</div>
+						<span class="text-sm font-bold text-slate-800">Inventory</span>
+					</button>
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 text-center" data-title="Purchases" data-desc="Coordinate with vendors, raise purchase orders, record goods receipts, and approve incoming supplier bills." data-color="text-amber-600">
+						<div class="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-base">ðŸ›’</div>
+						<span class="text-sm font-bold text-slate-800">Purchases</span>
+					</button>
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 text-center" data-title="Accounting" data-desc="Manage customer ledgers, generate automated invoice files, calculate GST taxes, and track outstanding balances." data-color="text-teal-600">
+						<div class="w-9 h-9 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-base">ðŸ’°</div>
+						<span class="text-sm font-bold text-slate-800">Accounting</span>
+					</button>
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 text-center" data-title="HR & Payroll" data-desc="Log daily site labor attendance, manage subcontractor wage cards, and run monthly payroll approvals." data-color="text-rose-600">
+						<div class="w-9 h-9 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-base">ðŸ‘¥</div>
+						<span class="text-sm font-bold text-slate-800">HR & Payroll</span>
+					</button>
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 text-center" data-title="Reports" data-desc="Generate custom reports on stock usage, project profit margins, client ledgers, and subcontractor payments." data-color="text-cyan-600">
+						<div class="w-9 h-9 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center text-base">ðŸ“ˆ</div>
+						<span class="text-sm font-bold text-slate-800">Reports</span>
+					</button>
+					<button class="mobile-module-btn p-4 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-2 text-center" data-title="Sales" data-desc="Quickly compile professional estimates, calculate pricing markups, set client discounts, and issue invoices." data-color="text-blue-600">
+						<div class="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-base">âš¡</div>
+						<span class="text-sm font-bold text-slate-800">Sales</span>
+					</button>
+				</div>
+				
+				<!-- Description details card (shown on the side) -->
+				<div class="w-full lg:w-[320px] p-6 rounded-2xl bg-white border border-slate-200 shadow-md flex flex-col gap-3 min-h-[160px] justify-center transition-all duration-300">
+					<div class="flex items-center gap-2.5">
+						<h3 id="module-detail-title" class="text-xl font-bold font-display text-emerald-600 m-0">CRM</h3>
+					</div>
+					<p id="module-detail-desc" class="text-slate-500 text-sm leading-relaxed m-0 font-sans">
+						Centralize client contacts, sales pipelines, deals, requirements, and communication logs in one easy-to-use workspace.
+					</p>
+				</div>
+				
+			</div>
+			
+			<div class="mt-8 text-xs text-slate-400 flex items-center gap-2 font-medium">
+				<span class="text-sm">ðŸ–±ï¸</span> Click on any module to explore
+			</div>
+		</div>
+	</section>
+
+	<!-- Call To Action -->
+	<section class="py-24 px-6 bg-gradient-to-t from-blue-50 to-white text-center">
+		<div class="max-w-4xl mx-auto">
+			<h2 class="text-3xl md:text-5xl font-bold font-display text-slate-900 mb-6">Ready to Streamline Your SME Operations?</h2>
+			<p class="text-slate-500 text-base md:text-lg max-w-lg mx-auto mb-10 leading-relaxed font-sans">Deploy your ERP environment in less than 5 minutes. No credit card required during trial.</p>
+			<a href={appUrl + "/login"} class="inline-block px-10 py-4 rounded-full bg-blue-600 text-white hover:bg-blue-700 font-bold text-base hover:scale-103 transition-all shadow-lg shadow-blue-500/20 no-underline font-sans">
+				Start Your Free Trial
+			</a>
+		</div>
+	</section>
+</Layout>
+
+<!-- Style for active wheel card highlighting -->
+<style>
+	.active-card {
+		border-color: currentColor !important;
+		box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02) !important;
+		transform: scale(1.05);
+	}
+	.active-mobile-card {
+		border-color: currentColor !important;
+		background: #eff6ff !important;
+	}
+</style>
+
+<!-- Client side interaction logic -->
+<script>
+	// Handle desktop buttons
+	const desktopButtons = document.querySelectorAll('.module-btn');
+	const detailTitle = document.getElementById('module-detail-title');
+	const detailDesc = document.getElementById('module-detail-desc');
+	
+	desktopButtons.forEach(btn => {
+		btn.addEventListener('click', () => {
+			// Clear active classes
+			desktopButtons.forEach(b => {
+				b.classList.remove('active-card');
+				// Reset color classes on sibling buttons
+				const textColor = b.getAttribute('data-color');
+				b.style.color = '';
+			});
+			
+			// Set active state
+			btn.classList.add('active-card');
+			const title = btn.getAttribute('data-title');
+			const desc = btn.getAttribute('data-desc');
+			const colorClass = btn.getAttribute('data-color');
+			
+			// Highlight with theme color
+			if (btn instanceof HTMLElement) {
+				btn.style.color = 'currentColor';
+			}
+			
+			if (detailTitle) {
+				detailTitle.textContent = title;
+				detailTitle.className = 'text-xl font-bold font-display ' + colorClass;
+			}
+			if (detailDesc) {
+				detailDesc.textContent = desc;
+			}
+		});
+	});
+
+	// Handle mobile buttons
+	const mobileButtons = document.querySelectorAll('.mobile-module-btn');
+	mobileButtons.forEach(btn => {
+		btn.addEventListener('click', () => {
+			mobileButtons.forEach(b => b.classList.remove('active-mobile-card'));
+			btn.classList.add('active-mobile-card');
+			
+			const title = btn.getAttribute('data-title');
+			const desc = btn.getAttribute('data-desc');
+			const colorClass = btn.getAttribute('data-color');
+			
+			if (detailTitle) {
+				detailTitle.textContent = title;
+				detailTitle.className = 'text-xl font-bold font-display ' + colorClass;
+			}
+			if (detailDesc) {
+				detailDesc.textContent = desc;
+			}
+		});
+	});
+</script>
