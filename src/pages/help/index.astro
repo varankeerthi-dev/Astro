@@ -12,16 +12,21 @@ const articles = await getCollection('help');
 			<p class="text-slate-500 text-lg max-w-md mx-auto font-sans">Browse our documentation or search help articles to get started with Origin-ERP.</p>
 		</div>
 		
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
 			<div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-				<h3 class="text-lg font-bold font-display mb-2 text-blue-600">Getting Started</h3>
-				<p class="text-sm text-slate-500 mb-4 font-sans">Learn the basics of setting up your organization and configuring workflows.</p>
-				<a href="/help/create-quotation" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide â†’</a>
+				<h3 class="text-lg font-bold font-display mb-2 text-blue-600">Sales & Billing</h3>
+				<p class="text-sm text-slate-500 mb-4 font-sans">Creating quotations, milestone billing, and managing client invoices.</p>
+				<a href="/help/create-quotation" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide →</a>
+			</div>
+			<div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+				<h3 class="text-lg font-bold font-display mb-2 text-blue-600">Field Operations</h3>
+				<p class="text-sm text-slate-500 mb-4 font-sans">Planning site visits, check-in/out, measurements, testing, and client sign-off.</p>
+				<a href="/help/site-visit-management" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide →</a>
 			</div>
 			<div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
 				<h3 class="text-lg font-bold font-display mb-2 text-blue-600">Inventory & Operations</h3>
-				<p class="text-sm text-slate-500 mb-4 font-sans">Guides on managing stock, site consumption, and warehouse transfers.</p>
-				<a href="/help/inventory-transfer" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide â†’</a>
+				<p class="text-sm text-slate-500 mb-4 font-sans">Managing stock, site consumption, and warehouse transfers.</p>
+				<a href="/help/inventory-transfer" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide →</a>
 			</div>
 		</div>
 

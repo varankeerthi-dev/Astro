@@ -1,4 +1,4 @@
-﻿---
+---
 import Layout from '../../layouts/Layout.astro';
 import { getCollection, render } from 'astro:content';
 
@@ -11,22 +11,229 @@ export async function getStaticPaths() {
 }
 
 const { article } = Astro.props;
-const { Content } = await render(article);
+const { Content, headings } = await render(article);
+
+type Palette = { fill: string; bg: string; border: string; text: string; softBg: string; codeBg: string; codeText: string; link: string; h2b: string; h3c: string; thbg: string; thtxt: string; qb: string; qbg: string; qt: string };
+
+const palettes: Record<string, Palette> = {
+  'Sales': { fill: '#10b981', bg: '#ecfdf5', border: '#a7f3d0', text: '#047857', softBg: 'linear-gradient(180deg, #ecfdf5 0%, #fff 40%, #f0fdfa 100%)', codeBg: '#ecfdf5', codeText: '#047857', link: '#059669', h2b: '#a7f3d0', h3c: '#0d9488', thbg: '#ecfdf5', thtxt: '#065f46', qb: '#34d399', qbg: '#ecfdf5', qt: '#065f46' },
+  'Finance': { fill: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe', text: '#6d28d9', softBg: 'linear-gradient(180deg, #f5f3ff 0%, #fff 40%, #faf5ff 100%)', codeBg: '#f5f3ff', codeText: '#6d28d9', link: '#7c3aed', h2b: '#ddd6fe', h3c: '#7c3aed', thbg: '#f5f3ff', thtxt: '#5b21b6', qb: '#a78bfa', qbg: '#f5f3ff', qt: '#5b21b6' },
+  'Inventory': { fill: '#f59e0b', bg: '#fffbeb', border: '#fde68a', text: '#b45309', softBg: 'linear-gradient(180deg, #fffbeb 0%, #fff 40%, #fff7ed 100%)', codeBg: '#fffbeb', codeText: '#b45309', link: '#d97706', h2b: '#fde68a', h3c: '#ea580c', thbg: '#fffbeb', thtxt: '#92400e', qb: '#fbbf24', qbg: '#fffbeb', qt: '#92400e' },
+  'Field Operations': { fill: '#38bdf8', bg: '#f0f9ff', border: '#bae6fd', text: '#0369a1', softBg: 'linear-gradient(180deg, #f0f9ff 0%, #fff 40%, #eff6ff 100%)', codeBg: '#f0f9ff', codeText: '#0369a1', link: '#0284c7', h2b: '#bae6fd', h3c: '#0284c7', thbg: '#f0f9ff', thtxt: '#075985', qb: '#38bdf8', qbg: '#f0f9ff', qt: '#075985' },
+};
+
+const p = palettes[article.data.category] || palettes['Field Operations'];
+const iconMap: Record<string, string> = { 'Sales': '💰', 'Finance': '📊', 'Inventory': '📦', 'Field Operations': '📍' };
+const icon = iconMap[article.data.category] || '📖';
+
+const cssVars = `--p-fill:${p.fill};--p-bg:${p.bg};--p-border:${p.border};--p-text:${p.text};--p-codeBg:${p.codeBg};--p-codeText:${p.codeText};--p-link:${p.link};--p-h2b:${p.h2b};--p-h3c:${p.h3c};--p-thbg:${p.thbg};--p-thtxt:${p.thtxt};--p-qb:${p.qb};--p-qbg:${p.qbg};--p-qt:${p.qt}`;
+
+const toc = headings.filter(h => h.depth <= 3);
 ---
 
 <Layout title={article.data.title + " - Help Center"} description={article.data.description}>
-	<article class="max-w-3xl mx-auto px-6 py-20 bg-white border border-slate-200/80 rounded-2xl shadow-xs mt-8">
-		<a href="/help" class="text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors no-underline block mb-8 font-sans">â† Back to Help Center</a>
-		
-		<header class="border-b border-slate-100 pb-8 mb-12">
-			<span class="text-xs text-blue-600 uppercase tracking-wider font-semibold block mb-2 font-sans">{article.data.category}</span>
-			<h1 class="text-4xl md:text-5xl font-bold font-display tracking-tight text-slate-900 mb-4">{article.data.title}</h1>
-			<p class="text-lg text-slate-500 mb-0 font-sans">{article.data.description}</p>
-			{article.data.lastUpdated && <span class="text-xs text-slate-400 block mt-4 font-mono">Last Updated: {article.data.lastUpdated}</span>}
-		</header>
-		
-		<div class="prose prose-slate max-w-none prose-h2:font-display prose-h2:text-slate-800 prose-p:text-slate-600 prose-a:text-blue-600 prose-strong:text-slate-900 prose-li:text-slate-600 font-sans">
-			<Content />
-		</div>
-	</article>
+  <div style={`background: ${p.softBg}; ${cssVars}`}>
+
+    <div class="max-w-6xl mx-auto px-4 md:px-6 pt-8 pb-20 lg:flex lg:gap-8 lg:items-start">
+
+      <!-- ===== LEFT TOC SIDEBAR ===== -->
+      <aside class="hidden lg:block lg:w-64 lg:sticky lg:top-28 lg:shrink-0">
+        <nav class="rounded-xl border bg-white/80 backdrop-blur-sm p-4 shadow-xs" style="border-color: #e2e8f0;">
+          <div class="flex items-center gap-2 mb-3 pb-3 border-b" style="border-color: #e2e8f0;">
+            <svg class="w-4 h-4" style="color: var(--p-text, #0369a1)" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
+            <span class="text-xs font-semibold uppercase tracking-wider" style="color: var(--p-text, #0369a1)">On this page</span>
+          </div>
+          <ul class="space-y-0.5">
+            {toc.map(h => (
+              <li>
+                <a
+                  href={`#${h.slug}`}
+                  class="toc-link block text-sm rounded-md py-1.5 px-2 transition-all no-underline"
+                  style={h.depth === 2
+                    ? `font-weight:500;color:#334155;padding-left:0.5rem`
+                    : `font-weight:400;color:#64748b;padding-left:1.25rem;font-size:0.8125rem`
+                  }
+                >{h.text}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </aside>
+
+      <!-- ===== MOBILE TOC DROPDOWN ===== -->
+      <div class="lg:hidden mb-6">
+        <details class="group rounded-xl border bg-white/80 backdrop-blur-sm shadow-xs overflow-hidden" style="border-color: #e2e8f0;">
+          <summary class="flex items-center justify-between px-4 py-3 cursor-pointer text-sm font-semibold no-underline list-none" style="color: var(--p-text, #0369a1)">
+            <span class="flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
+              On this page
+            </span>
+            <svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2} d="M19 9l-7 7-7-7" /></svg>
+          </summary>
+          <div class="border-t" style="border-color: #e2e8f0;">
+            <ul class="p-2 space-y-0.5">
+              {toc.map(h => (
+                <li>
+                  <a
+                    href={`#${h.slug}`}
+                    class="toc-link block text-sm rounded-md py-1.5 px-2 transition-all no-underline"
+                    style={h.depth === 2
+                      ? `font-weight:500;color:#334155`
+                      : `font-weight:400;color:#64748b;padding-left:1rem;font-size:0.8125rem`
+                    }
+                  >{h.text}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      </div>
+
+      <!-- ===== MAIN CONTENT ===== -->
+      <article class="min-w-0 flex-1">
+        <a href="/help" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors no-underline mb-6 font-sans bg-white/80 backdrop-blur-sm rounded-full px-4 py-2 border border-slate-200/60 shadow-xs">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2} d="M15 19l-7-7 7-7" /></svg>
+          Back to Help Center
+        </a>
+
+        <header class="rounded-2xl border shadow-sm p-8 md:p-10 mb-8 relative overflow-hidden" style="background:white;border-color:${p.border}">
+          <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:${p.fill};opacity:0.06;border-radius:50%;pointer-events:none" />
+          <div style="position:absolute;bottom:-40px;left:-40px;width:140px;height:140px;background:${p.fill};opacity:0.06;border-radius:50%;pointer-events:none" />
+          <div style="position:relative">
+            <span style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;padding:0.25rem 0.75rem;border-radius:9999px;background:${p.codeBg};color:${p.text};border:1px solid ${p.border};margin-bottom:1rem">
+              {icon} {article.data.category}
+            </span>
+            <h1 class="text-3xl md:text-5xl font-bold font-display tracking-tight mb-4 leading-tight" style="color:#0f172a">{article.data.title}</h1>
+            <p class="text-lg mb-0 font-sans max-w-2xl leading-relaxed" style="color:#64748b">{article.data.description}</p>
+            {article.data.lastUpdated && (
+              <span style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.75rem;margin-top:1.25rem;font-family:ui-monospace;padding:0.375rem 0.75rem;border-radius:9999px;background:${p.codeBg};color:${p.text};border:1px solid ${p.border}">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Last updated {article.data.lastUpdated}
+              </span>
+            )}
+          </div>
+        </header>
+
+        <div class="prose-custom" style="color:#475569;font-size:1rem;line-height:1.75">
+          <Content />
+        </div>
+      </article>
+
+    </div>
+
+  </div>
 </Layout>
+
+<style is:global>
+  html { scroll-behavior: smooth; }
+  .prose-custom h2, .prose-custom h3 { scroll-margin-top: 6rem; }
+  .prose-custom h2 {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-size: 1.625rem;
+    color: #1e293b;
+    border-bottom: 2px solid var(--p-h2b, #bae6fd);
+    padding-bottom: 0.75rem;
+    margin-top: 3rem;
+    margin-bottom: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .prose-custom h3 {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-size: 1.25rem;
+    color: var(--p-h3c, #0284c7);
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+  }
+  .prose-custom h4 {
+    color: var(--p-h3c, #0284c7);
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .prose-custom p { margin-bottom: 1rem; line-height: 1.75; }
+  .prose-custom ul, .prose-custom ol { margin-bottom: 1.25rem; padding-left: 1.5rem; }
+  .prose-custom li { margin-bottom: 0.375rem; line-height: 1.7; }
+  .prose-custom strong { color: #0f172a; font-weight: 600; }
+  .prose-custom code {
+    font-size: 0.875rem; padding: 0.125rem 0.5rem;
+    border-radius: 0.375rem; font-weight: 400;
+    background: var(--p-codeBg, #f0f9ff);
+    color: var(--p-codeText, #0369a1);
+  }
+  .prose-custom a { color: var(--p-link, #0284c7); text-decoration: none; }
+  .prose-custom a:hover { text-decoration: underline; }
+  .prose-custom pre {
+    background: #0f172a; color: #e2e8f0;
+    border-radius: 0.75rem; padding: 1.25rem;
+    overflow-x: auto; font-size: 0.875rem; line-height: 1.6;
+    margin-bottom: 1.5rem;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  }
+  .prose-custom table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    border: 1px solid #e2e8f0; border-radius: 0.75rem;
+    overflow: hidden; margin-bottom: 1.5rem;
+  }
+  .prose-custom th {
+    background: var(--p-thbg, #f0f9ff);
+    color: var(--p-thtxt, #075985);
+    font-weight: 600; font-size: 0.8125rem;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 0.75rem 1rem; text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .prose-custom td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+  }
+  .prose-custom tr:last-child td { border-bottom: none; }
+  .prose-custom blockquote {
+    border-left: 4px solid var(--p-qb, #38bdf8);
+    background: var(--p-qbg, #f0f9ff);
+    color: var(--p-qt, #075985);
+    padding: 0.75rem 1.25rem;
+    border-radius: 0 0.75rem 0.75rem 0;
+    margin: 1.25rem 0;
+  }
+  .prose-custom blockquote p { margin-bottom: 0; }
+  .prose-custom hr { border: none; border-top: 2px dashed #e2e8f0; margin: 2.5rem 0; }
+  .prose-custom > p:first-child {
+    font-size: 1.125rem; line-height: 1.8; color: #334155;
+    margin-bottom: 2rem; padding: 1.25rem 1.5rem;
+    background: #f8fafc; border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+  }
+
+  /* TOC active link */
+  .toc-link.active {
+    background: var(--p-codeBg, #f0f9ff);
+    color: var(--p-text, #0369a1) !important;
+    font-weight: 600 !important;
+  }
+</style>
+
+<script>
+  const links = document.querySelectorAll('.toc-link');
+  if (links.length) {
+    const ids = Array.from(links).map(l => l.getAttribute('href')?.slice(1)).filter(Boolean);
+    const headings = ids.map(id => document.getElementById(id)).filter(Boolean);
+
+    const observer = new IntersectionObserver((entries) => {
+      let active = '';
+      entries.forEach(entry => {
+        if (entry.isIntersecting) active = entry.target.id;
+      });
+      if (active) {
+        links.forEach(l => l.classList.remove('active'));
+        const activeLink = document.querySelector(`.toc-link[href="#${active}"]`);
+        if (activeLink) activeLink.classList.add('active');
+      }
+    }, { rootMargin: '-80px 0px -60% 0px' });
+
+    headings.forEach(h => observer.observe(h));
+  }
+</script>
