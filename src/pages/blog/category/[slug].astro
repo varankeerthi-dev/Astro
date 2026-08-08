@@ -1,0 +1,60 @@
+---
+// /blog/category/[slug] — posts filtered by category (Wave 6).
+import Layout from '../../../layouts/Layout.astro';
+import { listBlogPosts, listKbCategories } from '../../../lib/cms/query';
+import { cacheHeaders, cacheTagsFor } from '../../../lib/cache';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+const params = Astro.url.searchParams;
+const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+
+const [{ rows, total, perPage }, categories] = await Promise.all([
+  listBlogPosts({ page, perPage: 9, category: slug }),
+  listKbCategories().catch(() => []),
+]);
+const cat = categories.find((c) => c.slug === slug);
+const pages = Math.max(1, Math.ceil(total / perPage));
+
+if (!cat) return Astro.redirect('/blog');
+
+Astro.response.headers.set('Content-Type', 'text/html');
+if (!Astro.locals.preview) {
+  for (const [k, v] of Object.entries(cacheHeaders(cacheTagsFor('/blog')))) Astro.response.headers.set(k, v);
+}
+---
+<Layout title={`${cat.name} — Blog`} description={`Posts about ${cat.name.toLowerCase()} from the team.`}>
+  <section class="pt-32 pb-16 px-6 bg-white">
+    <div class="max-w-5xl mx-auto">
+      <a href="/blog" class="text-sm text-blue-600 font-semibold no-underline hover:text-blue-800">← All posts</a>
+      <h1 class="mt-4 text-4xl md:text-5xl font-bold font-display tracking-tight text-slate-900">{cat.name}</h1>
+      <p class="mt-3 text-slate-500 font-sans">{total} {total === 1 ? 'post' : 'posts'} in this category.</p>
+    </div>
+  </section>
+
+  <section class="px-6 pb-20">
+    <div class="max-w-5xl mx-auto">
+      {rows.length === 0 && <p class="text-slate-500 text-center py-16">No posts here yet.</p>}
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {rows.map((p: any) => (
+          <a href={p.page?.slug ?? '#'} class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col gap-3 no-underline hover:border-blue-300 transition-all">
+            <h2 class="text-lg font-bold font-display text-slate-900 leading-snug m-0">{p.title}</h2>
+            {p.excerpt && <p class="text-sm text-slate-500 leading-relaxed m-0 line-clamp-3 font-sans">{p.excerpt}</p>}
+            <span class="mt-auto text-xs text-slate-400 font-sans">
+              {p.reading_time_min ? `${p.reading_time_min} min read · ` : ''}
+              {p.publish_at ? new Date(p.publish_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+            </span>
+          </a>
+        ))}
+      </div>
+      {pages > 1 && (
+        <nav class="mt-12 flex items-center justify-center gap-3" aria-label="Pagination">
+          {page > 1 && <a href={`/blog/category/${slug}?page=${page - 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-slate-700 text-sm font-semibold no-underline hover:bg-slate-200">← Newer</a>}
+          <span class="text-sm text-slate-500">Page {page} of {pages}</span>
+          {page < pages && <a href={`/blog/category/${slug}?page=${page + 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-slate-700 text-sm font-semibold no-underline hover:bg-slate-200">Older →</a>}
+        </nav>
+      )}
+    </div>
+  </section>
+</Layout>

@@ -1,0 +1,85 @@
+---
+// Homepage banner carousel (Wave 1). Rendered by Layout on '/' only.
+// Slides fade via a tiny vanilla script; images are lazy, alt-aware,
+// and the overlay text is real HTML (never baked into the image).
+import { getLiveBanners, mediaUrl } from '../../lib/cms/query';
+import { supabaseAdmin } from '../../lib/supabase/admin';
+
+const banners = await getLiveBanners();
+const mediaIds = banners.flatMap((b) => [b.desktop_media_id, b.mobile_media_id].filter(Boolean));
+const { data: media } = mediaIds.length
+  ? await supabaseAdmin.from('media_assets').select('id, storage_path, alt_text').in('id', mediaIds)
+  : { data: [] };
+const pathOf = (id: string | null) => media?.find((m) => m.id === id)?.storage_path ?? null;
+const altOf = (id: string | null) => media?.find((m) => m.id === id)?.alt_text ?? '';
+const slides = banners.filter((b) => pathOf(b.desktop_media_id));
+---
+{slides.length > 0 && (
+  <section class="relative bg-slate-900 overflow-hidden" aria-label="Promotions" data-banner-slider>
+    <div class="relative h-[420px] md:h-[520px]">
+      {slides.map((b, i) => (
+        <div
+          class={`absolute inset-0 flex items-center justify-center text-center px-6 transition-opacity duration-500 ${
+            i === 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+          data-banner-slide
+        >
+          <img
+            src={mediaUrl(pathOf(b.desktop_media_id)!)}
+            alt={altOf(b.desktop_media_id) || b.subtitle || b.title_html || 'Promotional banner'}
+            class="absolute inset-0 w-full h-full object-cover opacity-60"
+            loading="lazy"
+            decoding="async"
+          />
+          <div class="relative z-10 max-w-2xl">
+            {b.title_html && <h2 class="text-3xl md:text-5xl font-bold font-display text-white leading-tight" set:html={b.title_html} />}
+            {b.subtitle && <p class="mt-4 text-white/85 text-lg font-sans">{b.subtitle}</p>}
+            {b.cta_label && (
+              <a
+                href={b.cta_url || '#'}
+                class="inline-block mt-6 px-6 py-3 rounded-full bg-white text-slate-900 font-semibold text-sm hover:bg-blue-50 no-underline font-sans"
+                data-umami-event="cta-click"
+                data-umami-props={JSON.stringify({ location: 'banner', label: b.cta_label })}
+              >
+                {b.cta_label}
+              </a>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+    {slides.length > 1 && (
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+        {slides.map((_, i) => (
+          <button
+            type="button"
+            data-banner-dot={i}
+            class={`w-2.5 h-2.5 rounded-full transition-colors cursor-pointer ${
+              i === 0 ? 'bg-white' : 'bg-white/40 hover:bg-white/80'
+            }`}
+            aria-label={`Go to slide ${i + 1}`}
+          />
+        ))}
+      </div>
+    )}
+  </section>
+)}
+<script>
+  (function () {
+    const slider = document.querySelector('[data-banner-slider]');
+    if (!slider) return;
+    const slides = Array.from(slider.querySelectorAll('[data-banner-slide]'));
+    const dots = Array.from(document.querySelectorAll('[data-banner-dot]'));
+    let i = 0;
+    function show(n) {
+      i = (n + slides.length) % slides.length;
+      slides.forEach((s, k) => {
+        s.classList.toggle('opacity-100', k === i);
+        s.classList.toggle('pointer-events-none', k !== i);
+      });
+      dots.forEach((d, k) => d.classList.toggle('bg-white', k === i));
+    }
+    dots.forEach((d, k) => d.addEventListener('click', () => show(k)));
+    setInterval(() => show(i + 1), 6000);
+  })();
+</script>

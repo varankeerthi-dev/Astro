@@ -22,3 +22,12 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# vercel build output (adapter)
+.vercel/
+
+# misc / local noise
+nul
+astro-dev.log
+*.log
+.turbo/

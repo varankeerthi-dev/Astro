@@ -1,0 +1,111 @@
+---
+// /admin — dashboard: content state at a glance + recent audit activity.
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { supabaseForUser } from '../../lib/supabase/server';
+import { can } from '../../lib/auth/permissions';
+
+export const prerender = false;
+
+const profile = Astro.locals.profile!;
+const supabase = supabaseForUser(Astro.cookies);
+
+interface StatusCounts { draft: number; scheduled: number; published: number; archived: number; }
+const empty: StatusCounts = { draft: 0, scheduled: 0, published: 0, archived: 0 };
+
+async function countByStatus(table: string): Promise<StatusCounts | null> {
+  try {
+    const { data, error } = await supabase.from(table).select('status').is('deleted_at', null);
+    if (error) return null;
+    const counts = { ...empty };
+    for (const row of data ?? []) counts[(row as { status: keyof StatusCounts }).status] += 1;
+    return counts;
+  } catch {
+    return null; // table not migrated yet
+  }
+}
+
+const [banners, announcements, articles, posts] = await Promise.all([
+  countByStatus('banners'),
+  countByStatus('announcements'),
+  countByStatus('kb_articles'),
+  countByStatus('blog_posts'),
+]);
+
+const modules = [
+  { name: 'Banners', href: '/admin/banners', counts: banners },
+  { name: 'Announcements', href: '/admin/announcements', counts: announcements },
+  { name: 'KB Articles', href: '/admin/help', counts: articles },
+  { name: 'Blog Posts', href: '/admin/blog', counts: posts },
+];
+
+let audit: { id: number; action: string; entity: string; summary: string | null; created_at: string }[] = [];
+if (can(profile.role, 'audit.view')) {
+  const { data } = await supabase
+    .from('audit_log')
+    .select('id, action, entity, summary, created_at')
+    .order('created_at', { ascending: false })
+    .limit(10);
+  audit = (data ?? []) as typeof audit;
+}
+
+const cmsReady = banners !== null || articles !== null;
+---
+<AdminLayout title="Dashboard" active="/admin">
+  {!cmsReady && (
+    <div class="mb-6 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+      The CMS database doesn't look migrated yet. Follow <code>PHASE0-SETUP.md</code> to run
+      <code>supabase/migrations/*.sql</code> and <code>seed.sql</code>, then refresh this page.
+    </div>
+  )}
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+    {modules.map((m) => (
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-slate-500">{m.name}</h2>
+        </div>
+        {m.counts ? (
+          <div class="flex items-end gap-4">
+            <span class="text-3xl font-bold font-display text-slate-900">{m.counts.published}</span>
+            <span class="text-xs text-slate-400 pb-1.5">published</span>
+            <span class="text-xs text-slate-500 pb-1.5">{m.counts.draft} draft · {m.counts.scheduled} scheduled</span>
+          </div>
+        ) : (
+          <p class="text-sm text-slate-400">Not set up yet</p>
+        )}
+      </div>
+    ))}
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="text-sm font-semibold text-slate-500 mb-3">Quick actions</h2>
+      <ul class="list-none p-0 m-0 flex flex-col gap-2 text-sm">
+        <li><a class="text-blue-600 hover:text-blue-800 no-underline font-medium" href="/admin/settings">Edit Website Settings →</a></li>
+        <li><a class="text-blue-600 hover:text-blue-800 no-underline font-medium" href="/" target="_blank" rel="noopener">View the public site →</a></li>
+        <li><a class="text-blue-600 hover:text-blue-800 no-underline font-medium" href="/robots.txt" target="_blank" rel="noopener">Check robots.txt (now CMS-driven) →</a></li>
+        <li><a class="text-blue-600 hover:text-blue-800 no-underline font-medium" href="/sitemap.xml" target="_blank" rel="noopener">Check sitemap.xml (now CMS-driven) →</a></li>
+      </ul>
+    </div>
+
+    {can(profile.role, 'audit.view') && (
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <h2 class="text-sm font-semibold text-slate-500 mb-3">Recent activity</h2>
+        {audit.length === 0 ? (
+          <p class="text-sm text-slate-400">No audit events yet.</p>
+        ) : (
+          <ul class="list-none p-0 m-0 flex flex-col gap-2 text-sm">
+            {audit.map((row) => (
+              <li class="flex items-baseline justify-between gap-3">
+                <span class="text-slate-700 truncate">
+                  <span class="font-semibold">{row.action}</span> {row.entity} {row.summary ? `— ${row.summary}` : ''}
+                </span>
+                <span class="text-xs text-slate-400 shrink-0">{new Date(row.created_at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )}
+  </div>
+</AdminLayout>

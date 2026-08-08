@@ -1,0 +1,8 @@
+---
+// JSON-LD injector. Pass a schema.org object (or an array of them).
+interface Props {
+  data: Record<string, unknown> | Record<string, unknown>[];
+}
+const { data } = Astro.props;
+---
+<script type="application/ld+json" is:inline set:html={JSON.stringify(data)} />

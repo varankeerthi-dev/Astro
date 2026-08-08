@@ -1,49 +1,77 @@
-﻿---
-import Layout from '../../layouts/Layout.astro';
-import { getCollection } from 'astro:content';
-
-const articles = await getCollection('help');
 ---
+// /help — DB-driven help center index with search (extends the existing
+// Help section per PRD Phase 7 — same visual language, now CMS-driven).
+import Layout from '../../layouts/Layout.astro';
+import { listKbArticles, listKbCategories, listReleaseNotes } from '../../lib/cms/query';
+import { cacheHeaders, cacheTagsFor } from '../../lib/cache';
 
-<Layout title="Help Center - Documentation & Guides" description="Find step-by-step guides, user documentation, and FAQs for Origin-ERP. Learn how to manage projects, create quotes, and track inventory.">
-	<section class="max-w-4xl mx-auto px-6 py-20">
-		<div class="text-center mb-16">
-			<h1 class="text-4xl md:text-6xl font-bold font-display tracking-tight mb-4 text-slate-900">How can we help you?</h1>
-			<p class="text-slate-500 text-lg max-w-md mx-auto font-sans">Browse our documentation or search help articles to get started with Origin-ERP.</p>
-		</div>
-		
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-			<div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-				<h3 class="text-lg font-bold font-display mb-2 text-blue-600">Sales & Billing</h3>
-				<p class="text-sm text-slate-500 mb-4 font-sans">Creating quotations, milestone billing, and managing client invoices.</p>
-				<a href="/help/create-quotation" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide →</a>
-			</div>
-			<div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-				<h3 class="text-lg font-bold font-display mb-2 text-blue-600">Field Operations</h3>
-				<p class="text-sm text-slate-500 mb-4 font-sans">Planning site visits, check-in/out, measurements, testing, and client sign-off.</p>
-				<a href="/help/site-visit-management" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide →</a>
-			</div>
-			<div class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-				<h3 class="text-lg font-bold font-display mb-2 text-blue-600">Inventory & Operations</h3>
-				<p class="text-sm text-slate-500 mb-4 font-sans">Managing stock, site consumption, and warehouse transfers.</p>
-				<a href="/help/inventory-transfer" class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-all no-underline font-sans">Read guide →</a>
-			</div>
-		</div>
+export const prerender = false;
 
-		<h2 class="text-2xl font-bold font-display text-slate-900 mb-6">All Articles</h2>
-		<div class="flex flex-col gap-4">
-			{articles.map(article => (
-				<a href={"/help/" + article.id} class="block p-5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 shadow-xs transition-all no-underline group">
-					<div class="flex justify-between items-center">
-						<div>
-							<span class="text-xs text-blue-600 uppercase tracking-wider font-semibold font-sans">{article.data.category}</span>
-							<h3 class="text-lg font-bold font-display text-slate-900 mt-1 group-hover:text-blue-600 transition-colors">{article.data.title}</h3>
-							<p class="text-sm text-slate-500 mt-1 mb-0 font-sans">{article.data.description}</p>
-						</div>
-						<span class="text-slate-400 group-hover:text-slate-900 transition-colors font-sans">â†’</span>
-					</div>
-				</a>
-			))}
-		</div>
-	</section>
+const [categories, recentArticles, recentNotes] = await Promise.all([
+  listKbCategories(),
+  listKbArticles({ limit: 6 }),
+  listReleaseNotes(),
+]);
+
+const hasReleaseNotes = recentNotes.length > 0;
+
+Astro.response.headers.set('Content-Type', 'text/html');
+if (!Astro.locals.preview) {
+  for (const [k, v] of Object.entries(cacheHeaders(cacheTagsFor('/help')))) Astro.response.headers.set(k, v);
+}
+---
+<Layout title="Help Center - Documentation & Guides" description="Find step-by-step guides, user documentation, and FAQs. Learn how to manage projects, create quotes, and track inventory.">
+  <section class="pt-32 pb-16 px-6 bg-white">
+    <div class="max-w-4xl mx-auto text-center">
+      <h1 class="text-4xl md:text-6xl font-bold font-display tracking-tight mb-4 text-slate-900">How can we help you?</h1>
+      <p class="text-slate-500 text-lg max-w-md mx-auto font-sans">Browse our documentation or search help articles.</p>
+      <form action="/search" method="get" class="mt-8 max-w-xl mx-auto flex gap-2" role="search">
+        <input type="search" name="q" placeholder="Search the help center…" aria-label="Search help articles"
+          class="flex-1 border border-slate-300 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 bg-white" />
+        <button type="submit" class="px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer">Search</button>
+      </form>
+    </div>
+  </section>
+
+  {categories.length > 0 && (
+    <section class="px-6 pb-12">
+      <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+        {categories.map((c) => (
+          <a href={`/help?category=${c.slug}`} class="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs no-underline hover:border-blue-300 transition-colors">
+            <h3 class="text-lg font-bold font-display mb-2 text-blue-600">{c.name}</h3>
+            <p class="text-sm text-slate-500 mb-4 font-sans">{c.kind.replace('_', ' ')}</p>
+            <span class="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-colors no-underline font-sans">Browse →</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {recentArticles.length > 0 && (
+    <section class="px-6 pb-12">
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-xl font-bold font-display mb-6">Recently updated</h2>
+        <div class="flex flex-col gap-3">
+          {recentArticles.map((a: any) => (
+            <a href={a.page?.slug ?? '#'} class="bg-white rounded-xl border border-slate-200/80 px-5 py-4 no-underline hover:border-blue-300 transition-colors flex items-baseline justify-between gap-4">
+              <span class="font-semibold text-slate-800">{a.title}</span>
+              <span class="text-xs text-slate-400 shrink-0 font-sans">
+                {a.category?.name ?? ''}
+                {a.reading_time_min ? ` · ${a.reading_time_min} min` : ''}
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {hasReleaseNotes && (
+    <section class="px-6 pb-20">
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-xl font-bold font-display mb-4">Release notes</h2>
+        <a href="/help/release-notes" class="text-sm font-semibold text-blue-600 hover:text-blue-800 no-underline">View the timeline →</a>
+      </div>
+    </section>
+  )}
 </Layout>

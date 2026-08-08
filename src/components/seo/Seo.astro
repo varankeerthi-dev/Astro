@@ -1,0 +1,75 @@
+---
+// Central SEO component (design doc §9.1). Consumed by Layout.astro.
+// Field priority: page_seo record → page props → Website Settings defaults.
+import JsonLd from './JsonLd.astro';
+
+interface SeoRecord {
+  seo_title?: string | null;
+  meta_description?: string | null;
+  canonical_url?: string | null;
+  robots?: string | null;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image_url?: string | null;
+  twitter_card?: string | null;
+  jsonld_extra?: Record<string, unknown> | null;
+}
+
+interface SettingsBits {
+  site_name?: string | null;
+  default_seo_title?: string | null;
+  default_seo_description?: string | null;
+  default_og_image_url?: string | null;
+  gsc_verification?: string | null;
+  [key: string]: unknown;
+}
+
+interface Props {
+  title: string;                    // page-supplied fallback (pre-CMS behaviour)
+  description?: string;             // page-supplied fallback
+  seo?: SeoRecord | null;           // page_seo row from the CMS (optional)
+  settings?: SettingsBits | null;   // site_settings row (optional)
+  jsonld?: Record<string, unknown> | Record<string, unknown>[] | null;
+  pathname?: string;
+}
+
+const {
+  title,
+  description,
+  seo = null,
+  settings = null,
+  jsonld = null,
+  pathname = Astro.url.pathname,
+} = Astro.props;
+
+const siteName = settings?.site_name?.trim() || 'Origin-ERP';
+const baseUrl = (Astro.site?.toString() ?? 'https://perfecterp.com').replace(/\/$/, '');
+
+const rawTitle = seo?.seo_title?.trim() || title || settings?.default_seo_title || siteName;
+const fullTitle = rawTitle.includes(siteName) ? rawTitle : `${rawTitle} | ${siteName}`;
+const desc = seo?.meta_description?.trim() || description || settings?.default_seo_description || '';
+const path = pathname === '/' ? '/' : pathname.replace(/\/+$/, '') + '/';
+const canonical = seo?.canonical_url?.trim() || `${baseUrl}${path}`;
+const robots = seo?.robots?.trim() || 'index,follow';
+const ogTitle = seo?.og_title?.trim() || fullTitle;
+const ogDesc = seo?.og_description?.trim() || desc;
+const ogImage = seo?.og_image_url || settings?.default_og_image_url || null;
+const twitterCard = seo?.twitter_card || (ogImage ? 'summary_large_image' : 'summary');
+---
+<title>{fullTitle}</title>
+{desc && <meta name="description" content={desc} />}
+<link rel="canonical" href={canonical} />
+<meta name="robots" content={robots} />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content={siteName} />
+<meta property="og:title" content={ogTitle} />
+{ogDesc && <meta property="og:description" content={ogDesc} />}
+<meta property="og:url" content={canonical} />
+{ogImage && <meta property="og:image" content={ogImage} />}
+<meta name="twitter:card" content={twitterCard} />
+<meta name="twitter:title" content={ogTitle} />
+{ogDesc && <meta name="twitter:description" content={ogDesc} />}
+{ogImage && <meta name="twitter:image" content={ogImage} />}
+{settings?.gsc_verification && <meta name="google-site-verification" content={settings.gsc_verification} />}
+{jsonld && <JsonLd data={jsonld} />}
+{seo?.jsonld_extra && <JsonLd data={seo.jsonld_extra} />}

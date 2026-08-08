@@ -1,0 +1,123 @@
+---
+// Admin shell: sidebar + topbar. Middleware guarantees Astro.locals.profile
+// for every /admin/* page except /admin/login.
+import '../styles/global.css';
+import { ROLE_LABELS } from '../lib/auth/permissions';
+
+interface Props {
+  title: string;
+  active?: string;
+}
+const { title, active = '' } = Astro.props;
+const profile = Astro.locals.profile;
+
+const NAV: { section: string; items: { href: string; label: string }[] }[] = [
+  {
+    section: 'Overview',
+    items: [{ href: '/admin', label: 'Dashboard' }],
+  },
+  {
+    section: 'Content',
+    items: [
+      { href: '/admin/banners', label: 'Banners' },
+      { href: '/admin/announcements', label: 'Announcements' },
+      { href: '/admin/locations', label: 'Location Pages' },
+      { href: '/admin/blog', label: 'Blog' },
+      { href: '/admin/help', label: 'Knowledge Base' },
+      { href: '/admin/releases', label: 'Feature Releases' },
+    ],
+  },
+  {
+    section: 'Assets & SEO',
+    items: [
+      { href: '/admin/media', label: 'Media Library' },
+      { href: '/admin/seo', label: 'SEO Manager' },
+    ],
+  },
+  {
+    section: 'Configuration',
+    items: [
+      { href: '/admin/settings', label: 'Website Settings' },
+      { href: '/admin/users', label: 'Users & Roles' },
+      { href: '/admin/audit', label: 'Audit Log' },
+    ],
+  },
+];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} | CMS Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-100 text-slate-900 antialiased font-sans min-h-screen">
+    <div class="flex min-h-screen">
+      <!-- Sidebar -->
+      <aside class="w-60 shrink-0 bg-white border-r border-slate-200 flex flex-col">
+        <div class="px-5 py-4 border-b border-slate-100">
+          <a href="/admin" class="flex items-center gap-2.5 no-underline">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-sm text-white font-display">B</div>
+            <span class="font-bold text-slate-900 font-display">CMS Admin</span>
+          </a>
+        </div>
+        <nav class="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-5">
+          {NAV.map((group) => (
+            <div>
+              <p class="px-2 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{group.section}</p>
+              <ul class="list-none p-0 m-0 flex flex-col gap-0.5">
+                {group.items.map((item) => (
+                  <li>
+                    <a
+                      href={item.href}
+                      class={`block px-2.5 py-2 rounded-lg text-sm no-underline transition-colors ${
+                        active === item.href
+                          ? 'bg-blue-50 text-blue-700 font-semibold'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+        <div class="px-4 py-3 border-t border-slate-100">
+          <a href="/" class="text-xs text-slate-400 hover:text-slate-600 no-underline">← View public site</a>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <div class="flex-1 flex flex-col min-w-0">
+        <header class="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between">
+          <h1 class="text-base font-bold font-display text-slate-900">{title}</h1>
+          <div class="flex items-center gap-3">
+            {profile && (
+              <>
+                <span class="text-sm text-slate-600">{profile.full_name}</span>
+                <span class="text-[11px] font-semibold uppercase tracking-wide bg-blue-50 text-blue-700 px-2 py-1 rounded-full">
+                  {ROLE_LABELS[profile.role]}
+                </span>
+                <form method="POST" action="/api/admin/logout">
+                  <button type="submit" class="text-sm text-slate-500 hover:text-slate-800 bg-transparent border-none cursor-pointer font-sans">
+                    Sign out
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </header>
+        <main class="flex-1 px-6 py-6">
+          <slot />
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,168 @@
+---
+// /admin/locations — Phase 4 location landing pages (city/state → slug,
+// hero, description markdown, testimonials/FAQs/contact JSON, map, CTA).
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { apiGet, apiSend, formToObject, STATUS_LABEL, STATUS_BADGE } from '../../lib/cms/admin-fetch';
+import { supabaseAdmin } from '../../lib/supabase/admin';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+const q = params.get('q') ?? '';
+const status = params.get('status') ?? '';
+const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+const perPage = 20;
+const editId = params.get('edit') ?? '';
+const newMode = params.get('new') === '1';
+const notice = params.get('ok') ?? '';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('_action') ?? '');
+  try {
+    const payload = formToObject(form);
+    delete payload._action;
+    if (action === 'create') {
+      const res = await apiSend(Astro, '/api/admin/locations', payload);
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/locations?ok=created');
+    } else if (action === 'update' && editId) {
+      const res = await apiSend(Astro, `/api/admin/locations/${editId}`, payload, 'PATCH');
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/locations?ok=updated');
+    } else if (action === 'status') {
+      const id = String(form.get('id') ?? '');
+      const to = String(form.get('to') ?? '');
+      const body: Record<string, unknown> = { action: to };
+      const at = String(form.get('at') ?? '');
+      if (to === 'schedule' && at) body.at = new Date(at).toISOString();
+      const res = await apiSend(Astro, `/api/admin/locations/${id}`, body);
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/locations?ok=' + to);
+    } else if (action === 'duplicate') {
+      const id = String(form.get('id') ?? '');
+      const res = await apiSend(Astro, `/api/admin/locations/${id}`, { action: 'duplicate' });
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/locations?ok=duplicated');
+    } else if (action === 'delete') {
+      const id = String(form.get('id') ?? '');
+      const res = await apiSend(Astro, `/api/admin/locations/${id}`, {}, 'DELETE');
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/locations?ok=deleted');
+    }
+  } catch (e: any) { error = e?.message ?? String(e); }
+}
+
+let list: { rows: any[]; total: number; page: number } = { rows: [], total: 0, page: 1 };
+try {
+  list = await apiGet(Astro, `/api/admin/locations?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}&page=${page}&perPage=${perPage}`);
+} catch (e: any) { error = e?.message ?? String(e); }
+let editRow: any = null;
+if (editId) { try { editRow = await apiGet(Astro, `/api/admin/locations/${editId}`); } catch {} }
+const { data: mediaItems } = await supabaseAdmin
+  .from('media_assets').select('id, filename').is('deleted_at', null)
+  .order('created_at', { ascending: false }).limit(100);
+const mediaOptions = mediaItems ?? [];
+const pages = Math.max(1, Math.ceil(list.total / perPage));
+const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white font-mono';
+const labelCls = 'text-sm font-semibold text-slate-700';
+const pick = (r: any, k: string) => (editRow ? (editRow[k] ?? '') : '');
+const jsonText = (r: any, k: string) => (editRow && editRow[k] ? JSON.stringify(editRow[k], null, 2) : '');
+---
+<AdminLayout title="Location Pages" active="/admin/locations">
+  {notice && <div class="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">Done — {notice}.</div>}
+  {error && <div class="mb-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">Error: {error}</div>}
+
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <form method="get" class="flex flex-wrap gap-2">
+        <input type="search" name="q" value={q} placeholder="Search by city or state…" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white" />
+        <select name="status" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white">
+          <option value="">All statuses</option>
+          {Object.entries(STATUS_LABEL).map(([v, l]) => <option value={v} selected={status === v}>{l}</option>)}
+        </select>
+        <button type="submit" class="px-4 py-2 rounded-full bg-slate-800 text-white text-sm font-semibold cursor-pointer">Filter</button>
+      </form>
+      <a href="/admin/locations?new=1" class="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-semibold no-underline">+ New location page</a>
+    </div>
+  </div>
+
+  {(newMode || editId) && (
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      <h2 class="text-base font-bold font-display mb-4">{editId ? 'Edit location page' : 'New location page'}</h2>
+      <form method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input type="hidden" name="_action" value={editId ? 'update' : 'create'} />
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>City</span>
+          <input class={inputCls} name="city" value={pick(editRow, 'city')} required placeholder="Chennai" /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>State</span>
+          <input class={inputCls} name="state" value={pick(editRow, 'state')} required placeholder="Tamil Nadu" /></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Hero heading</span>
+          <input class={inputCls} name="hero_heading" value={pick(editRow, 'hero_heading')} placeholder="ERP Software Chennai" /></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Hero subheading</span>
+          <input class={inputCls} name="hero_subheading" value={pick(editRow, 'hero_subheading')} /></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Banner image (media)</span>
+          <select name="banner_media_id" class={inputCls}>
+            <option value="">— none —</option>
+            {mediaOptions.map((m) => <option value={m.id} selected={pick(editRow, 'banner_media_id') === m.id}>{m.filename}</option>)}
+          </select></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Description (Markdown)</span>
+          <textarea class={`${inputCls} h-40`} name="description_md" placeholder="Describe the ERP solution for this city…">{pick(editRow, 'description_md')}</textarea></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Testimonials (JSON array)</span>
+          <textarea class={`${inputCls} h-28`} name="testimonials" placeholder='[{"name":"…","company":"…","quote":"…","rating":5}]'>{jsonText(editRow, 'testimonials')}</textarea></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>FAQs (JSON array — rendered as FAQPage schema)</span>
+          <textarea class={`${inputCls} h-28`} name="faqs" placeholder='[{"q":"…","a":"…"}]'>{jsonText(editRow, 'faqs')}</textarea></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Contact (JSON)</span>
+          <textarea class={`${inputCls} h-20`} name="contact" placeholder='{"phone":"","email":"","address":""}'>{jsonText(editRow, 'contact')}</textarea></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Google Maps embed URL</span>
+          <input class={inputCls} name="map_embed_url" value={pick(editRow, 'map_embed_url')} placeholder="https://maps.google.com/maps?q=Chennai&output=embed" /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>CTA label</span>
+          <input class={inputCls} name="cta_label" value={pick(editRow, 'cta_label')} placeholder="Book a Demo" /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>CTA URL</span>
+          <input class={inputCls} name="cta_url" value={pick(editRow, 'cta_url')} placeholder="/pricing" /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Publish at (optional)</span>
+          <input type="datetime-local" class={inputCls} name="publish_at" value={pick(editRow, 'publish_at') ? String(pick(editRow, 'publish_at')).slice(0, 16) : ''} /></label>
+        <div class="md:col-span-2 flex gap-3">
+          <button type="submit" class="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer">Save draft</button>
+          {editId && <a href="/admin/locations" class="px-6 py-2.5 rounded-full bg-slate-100 text-slate-700 text-sm font-semibold no-underline">Cancel</a>}
+        </div>
+      </form>
+    </div>
+  )}
+
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    {list.rows.length === 0 && <p class="text-sm text-slate-400 text-center py-12">No location pages yet — “ERP Software Chennai” takes about two minutes.</p>}
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+        <tr><th class="px-4 py-3">City / State</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">FAQs</th><th class="px-4 py-3 text-right">Actions</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {list.rows.map((r: any) => (
+          <tr class="hover:bg-slate-50/60">
+            <td class="px-4 py-3">
+              <p class="font-semibold text-slate-800 m-0">{r.city}{r.state ? `, ${r.state}` : ''}</p>
+              <a href={`/locations/${r.page?.slug?.replace('/locations/', '') ?? ''}`} class="text-xs text-blue-600 no-underline" target="_blank" rel="noopener">View page →</a>
+            </td>
+            <td class="px-4 py-3"><span class={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${STATUS_BADGE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
+            <td class="px-4 py-3 text-slate-500">{Array.isArray(r.faqs) ? r.faqs.length : 0}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center justify-end gap-2 flex-wrap">
+                {r.status !== 'published' && (
+                  <form method="POST" class="inline"><input type="hidden" name="_action" value="status" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="publish" /><button class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full cursor-pointer">Publish</button></form>
+                )}
+                {r.status !== 'archived' && (
+                  <form method="POST" class="inline"><input type="hidden" name="_action" value="status" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="archive" /><button class="text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full cursor-pointer">Archive</button></form>
+                )}
+                <a href={`/admin/locations?edit=${r.id}`} class="text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full no-underline">Edit</a>
+                <form method="POST" class="inline" onsubmit="return confirm('Delete this location page?')"><input type="hidden" name="_action" value="delete" /><input type="hidden" name="id" value={r.id} /><button class="text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full cursor-pointer">Delete</button></form>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  {pages > 1 && (
+    <nav class="mt-6 flex items-center justify-center gap-3">
+      {page > 1 && <a href={`/admin/locations?page=${page - 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">← Prev</a>}
+      <span class="text-sm text-slate-500">Page {page} of {pages}</span>
+      {page < pages && <a href={`/admin/locations?page=${page + 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">Next →</a>}
+    </nav>
+  )}
+</AdminLayout>

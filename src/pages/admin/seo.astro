@@ -1,0 +1,159 @@
+---
+// /admin/seo — SEO Manager: page list with live SEO score, warnings,
+// duplicate-title detection, and an inline meta editor (Phase 3).
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { apiGet, apiSend } from '../../lib/cms/admin-fetch';
+import { scoreSeo } from '../../lib/seo/score';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+const q = params.get('q') ?? '';
+const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+const editId = params.get('edit') ?? '';
+const notice = params.get('ok') ?? '';
+let error = '';
+
+if (Astro.request.method === 'POST' && editId) {
+  const form = await Astro.request.formData();
+  const seo: Record<string, unknown> = {};
+  for (const k of ['seo_title', 'meta_description', 'canonical_url', 'robots', 'focus_keyword', 'og_title', 'og_description', 'twitter_card', 'breadcrumb_title']) {
+    const v = String(form.get(k) ?? '').trim();
+    if (v) seo[k] = v;
+  }
+  const res = await apiSend(Astro, `/api/admin/pages/${editId}`, { title: String(form.get('title') ?? '').trim(), seo }, 'PATCH');
+  if (!res.ok) error = res.error;
+  else return Astro.redirect('/admin/seo?ok=saved');
+}
+
+let list: { rows: any[]; total: number; page: number; duplicates: { title: string; pageIds: string[] }[] } =
+  { rows: [], total: 0, page: 1, duplicates: [] };
+try {
+  list = await apiGet(Astro, `/api/admin/pages?q=${encodeURIComponent(q)}&page=${page}`);
+} catch (e: any) { error = e?.message ?? String(e); }
+
+let editRow: any = null;
+if (editId) {
+  try { editRow = await apiGet(Astro, `/api/admin/pages/${editId}`); } catch {}
+}
+const seoOf = (row: any) => row?.page_seo ?? {};
+const scoreOf = (row: any) =>
+  scoreSeo({
+    seoTitle: seoOf(row).seo_title ?? null,
+    metaDescription: seoOf(row).meta_description ?? null,
+    focusKeyword: seoOf(row).focus_keyword ?? null,
+    slug: row.slug,
+    bodyText: ' ',
+    headingsText: row.title,
+    hasImagesWithAlt: !!seoOf(row).og_image_id,
+    hasCanonical: !!seoOf(row).canonical_url,
+    hasOg: !!(seoOf(row).og_title || seoOf(row).og_image_id),
+    hasTwitter: !!seoOf(row).twitter_card,
+    internalLinks: 1,
+  });
+
+const pages = Math.max(1, Math.ceil(list.total / 50));
+const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white';
+const labelCls = 'text-sm font-semibold text-slate-700';
+const dupIds = new Set(list.duplicates.flatMap((d) => d.pageIds));
+const scoreColor = (s: number) => (s >= 85 ? 'text-emerald-600' : s >= 60 ? 'text-amber-600' : 'text-red-600');
+---
+<AdminLayout title="SEO Manager" active="/admin/seo">
+  {notice && <div class="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">Done — {notice}.</div>}
+  {error && <div class="mb-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">Error: {error}</div>}
+
+  {list.duplicates.length > 0 && (
+    <div class="mb-6 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+      <strong>Duplicate SEO titles detected:</strong>{' '}
+      {list.duplicates.map((d) => `“${d.title}” (${d.pageIds.length} pages)`).join(' · ')}
+    </div>
+  )}
+
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+    <form method="get" class="flex flex-wrap gap-2">
+      <input type="search" name="q" value={q} placeholder="Search pages…" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white" />
+      <button type="submit" class="px-4 py-2 rounded-full bg-slate-800 text-white text-sm font-semibold cursor-pointer">Filter</button>
+    </form>
+  </div>
+
+  {editRow && (
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      <h2 class="text-base font-bold font-display mb-1">Edit SEO — {editRow.slug}</h2>
+      {(() => { const s = scoreOf(editRow); return (
+        <p class="text-sm text-slate-500 mb-4">Score: <span class={`font-bold ${scoreColor(s.score)}`}>{s.score}/100</span>
+          {s.warnings.length ? ` — ${s.warnings.map((w) => w.message).join(' · ')}` : ''}</p>
+      ); })()}
+      <form method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Page title</span>
+          <input class={inputCls} name="title" value={editRow.title ?? ''} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>SEO title <span class="text-slate-400 font-normal">(30–60 chars)</span></span>
+          <input class={inputCls} name="seo_title" value={seoOf(editRow).seo_title ?? ''} /></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Meta description <span class="text-slate-400 font-normal">(70–160 chars)</span></span>
+          <textarea class={inputCls} name="meta_description" rows="2">{seoOf(editRow).meta_description ?? ''}</textarea></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Focus keyword</span>
+          <input class={inputCls} name="focus_keyword" value={seoOf(editRow).focus_keyword ?? ''} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Canonical URL</span>
+          <input class={inputCls} name="canonical_url" value={seoOf(editRow).canonical_url ?? ''} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Robots</span>
+          <select name="robots" class={inputCls}>
+            {['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'].map((r) => <option value={r} selected={seoOf(editRow).robots === r}>{r}</option>)}
+          </select></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Twitter card</span>
+          <select name="twitter_card" class={inputCls}>
+            {['summary', 'summary_large_image'].map((r) => <option value={r} selected={seoOf(editRow).twitter_card === r}>{r}</option>)}
+          </select></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>OG title</span>
+          <input class={inputCls} name="og_title" value={seoOf(editRow).og_title ?? ''} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>OG description</span>
+          <input class={inputCls} name="og_description" value={seoOf(editRow).og_description ?? ''} /></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Breadcrumb title</span>
+          <input class={inputCls} name="breadcrumb_title" value={seoOf(editRow).breadcrumb_title ?? ''} /></label>
+        <div class="md:col-span-2 flex gap-3">
+          <button type="submit" class="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer">Save SEO</button>
+          <a href="/admin/seo" class="px-6 py-2.5 rounded-full bg-slate-100 text-slate-700 text-sm font-semibold no-underline">Cancel</a>
+        </div>
+      </form>
+    </div>
+  )}
+
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    {list.rows.length === 0 && <p class="text-sm text-slate-400 text-center py-12">No pages found.</p>}
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+        <tr>
+          <th class="px-4 py-3">Page</th><th class="px-4 py-3">Score</th>
+          <th class="px-4 py-3">SEO title</th><th class="px-4 py-3">Missing</th>
+          <th class="px-4 py-3 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {list.rows.map((r: any) => {
+          const s = scoreOf(r);
+          const missing = s.warnings.map((w) => w.rule.split('.')[1]).filter((x) => x !== 'length').slice(0, 4);
+          return (
+            <tr class="hover:bg-slate-50/60">
+              <td class="px-4 py-3">
+                <p class="font-semibold text-slate-800 m-0">{r.title}{dupIds.has(r.id) && <span class="ml-2 text-[10px] font-bold uppercase text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">dup title</span>}</p>
+                <a href={r.slug} class="text-xs text-blue-600 no-underline" target="_blank" rel="noopener">{r.slug}</a>
+              </td>
+              <td class="px-4 py-3"><span class={`font-bold ${scoreColor(s.score)}`}>{s.score}</span></td>
+              <td class="px-4 py-3 text-slate-600 max-w-[220px] truncate">{seoOf(r).seo_title ?? <em class="text-amber-600">missing</em>}</td>
+              <td class="px-4 py-3 text-xs text-slate-500">{missing.length ? missing.join(', ') : <span class="text-emerald-600 font-semibold">all good</span>}</td>
+              <td class="px-4 py-3 text-right">
+                <a href={`/admin/seo?edit=${r.id}`} class="text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full no-underline">Edit</a>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+
+  {pages > 1 && (
+    <nav class="mt-6 flex items-center justify-center gap-3">
+      {page > 1 && <a href={`/admin/seo?q=${encodeURIComponent(q)}&page=${page - 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">← Prev</a>}
+      <span class="text-sm text-slate-500">Page {page} of {pages}</span>
+      {page < pages && <a href={`/admin/seo?q=${encodeURIComponent(q)}&page=${page + 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">Next →</a>}
+    </nav>
+  )}
+</AdminLayout>

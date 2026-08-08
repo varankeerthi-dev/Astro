@@ -1,0 +1,62 @@
+---
+// Umami + Clarity loader (Website Settings IDs with env fallback) + event
+// tracking: data-umami-event clicks (with section attribution), scroll-depth
+// buckets, and page-exit. Loads only in production builds.
+interface Props {
+  settings: {
+    umami_website_id?: string | null;
+    clarity_project_id?: string | null;
+    [key: string]: unknown;
+  } | null;
+}
+const { settings } = Astro.props;
+
+const umamiId = settings?.umami_website_id || import.meta.env.PUBLIC_UMAMI_WEBSITE_ID || '';
+const clarityId = settings?.clarity_project_id || import.meta.env.PUBLIC_CLARITY_PROJECT_ID || '';
+const umamiSrc = import.meta.env.PUBLIC_UMAMI_SRC || 'https://cloud.umami.is/script.js';
+const umamiHost = import.meta.env.PUBLIC_UMAMI_HOST || '';
+const enabled = import.meta.env.PROD && Boolean(umamiId || clarityId);
+---
+{enabled && umamiId && (
+  <script
+    is:inline
+    defer
+    src={umamiSrc}
+    data-website-id={umamiId}
+    {...(umamiHost ? { 'data-host-url': umamiHost } : {})}
+  />
+)}
+{enabled && clarityId && (
+  <script is:inline>
+    {`(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", ${JSON.stringify(clarityId)});`}
+  </script>
+)}
+{enabled && (
+  <script is:inline>
+    {`(function () {
+  function track(name, props) { try { if (window.umami) window.umami.track(name, props || {}); } catch (_) {} }
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest ? e.target.closest('[data-umami-event]') : null;
+    if (!el) return;
+    var props = {};
+    var raw = el.getAttribute('data-umami-props');
+    if (raw) { try { props = JSON.parse(raw); } catch (_) {} }
+    var section = el.closest('[data-section]');
+    if (section) props.section = section.getAttribute('data-section');
+    track(el.getAttribute('data-umami-event'), props);
+  });
+  var bucket = '0-25';
+  window.addEventListener('scroll', function () {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    var p = h > 0 ? Math.round((window.scrollY / h) * 100) : 100;
+    var b = p >= 90 ? '90-100' : p >= 60 ? '60-90' : p >= 25 ? '25-60' : '0-25';
+    if (b !== bucket) { bucket = b; track('scroll-depth', { bucket: b }); }
+  });
+  window.addEventListener('pagehide', function () {
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    var p = h > 0 ? Math.round((window.scrollY / h) * 100) : 100;
+    track('page-exit', { maxScroll: p });
+  });
+})();`}
+  </script>
+)}

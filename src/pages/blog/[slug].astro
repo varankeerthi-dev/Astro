@@ -1,0 +1,88 @@
+---
+// /blog/[slug] — single post with TOC, related reading, JSON-LD (Wave 6).
+import Layout from '../../layouts/Layout.astro';
+import { getBlogPostBySlug, listBlogPosts } from '../../lib/cms/query';
+import { renderMarkdown, readingTime } from '../../lib/md';
+import { breadcrumb, blogPosting } from '../../lib/seo/jsonld';
+import { cacheHeaders, cacheTagsFor } from '../../lib/cache';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+const post: any = await getBlogPostBySlug(slug!, { includeDrafts: Astro.locals.preview });
+
+if (!post) return Astro.redirect('/404');
+
+const site = import.meta.env.SITE?.replace(/\/$/, '') ?? 'https://perfecterp.com';
+const path = `/blog/${slug}`;
+const body = renderMarkdown(post.content_md ?? '');
+const minutes = post.reading_time_min || readingTime(post.content_md ?? '');
+const seo = (post.page?.page_seo ?? null) as Record<string, any> | null;
+
+const { rows: related } = await listBlogPosts({ perPage: 3 });
+const relatedPosts = related.filter((r: any) => r.id !== post.id).slice(0, 3);
+
+const jsonld = [
+  blogPosting({
+    title: post.title,
+    description: post.excerpt || seo?.meta_description || '',
+    url: `${site}${path}`,
+    datePublished: post.publish_at || post.created_at,
+    dateModified: post.updated_at,
+    author: post.author?.full_name ?? 'Origin-ERP Team',
+    image: null,
+  }),
+  breadcrumb([{ name: 'Blog', url: `${site}/blog` }, { name: post.title, url: `${site}${path}` }]),
+];
+
+Astro.response.headers.set('Content-Type', 'text/html');
+if (!Astro.locals.preview) {
+  for (const [k, v] of Object.entries(cacheHeaders(cacheTagsFor(path)))) Astro.response.headers.set(k, v);
+}
+---
+<Layout title={post.title} description={post.excerpt || seo?.meta_description} seo={seo} jsonld={jsonld}>
+  <article class="pt-32 pb-20 px-6 bg-white">
+    <div class="max-w-3xl mx-auto">
+      <a href="/blog" class="text-sm text-blue-600 font-semibold no-underline hover:text-blue-800">← All posts</a>
+      <p class="mt-6 text-xs font-semibold uppercase tracking-wide text-blue-600">{post.category?.name ?? 'News'}</p>
+      <h1 class="mt-2 text-3xl md:text-5xl font-bold font-display tracking-tight text-slate-900 leading-tight">{post.title}</h1>
+      <p class="mt-4 text-sm text-slate-400 font-sans">
+        {post.author?.full_name ? `${post.author.full_name} · ` : ''}
+        {post.publish_at ? new Date(post.publish_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+        {minutes ? ` · ${minutes} min read` : ''}
+      </p>
+      <div class="mt-10 grid grid-cols-1 md:grid-cols-[180px_1fr] gap-10">
+        {body.toc.length > 0 && (
+          <nav class="hidden md:block" aria-label="Table of contents">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">On this page</p>
+            <ul class="list-none p-0 m-0 flex flex-col gap-2 border-l border-slate-200 pl-4">
+              {body.toc.map((h) => (
+                <li key={h.id}><a href={`#${h.id}`} class="text-sm text-slate-500 hover:text-blue-600 no-underline leading-snug block">{h.text}</a></li>
+              ))}
+            </ul>
+          </nav>
+        )}
+        <div class="prose prose-slate max-w-none min-w-0">
+          <Fragment set:html={body.html} />
+        </div>
+      </div>
+    </div>
+  </article>
+
+  {relatedPosts.length > 0 && (
+    <section class="px-6 pb-20">
+      <div class="max-w-5xl mx-auto">
+        <h2 class="text-xl font-bold font-display mb-6">Keep reading</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {relatedPosts.map((p: any) => (
+            <a href={p.page?.slug ?? '#'} class="bg-white rounded-2xl border border-slate-200 p-5 no-underline hover:border-blue-300 transition-colors">
+              <p class="text-xs font-semibold uppercase tracking-wide text-blue-600 m-0">{p.category?.name ?? 'News'}</p>
+              <h3 class="mt-2 text-base font-bold font-display text-slate-900 leading-snug m-0">{p.title}</h3>
+              {p.excerpt && <p class="mt-2 text-sm text-slate-500 m-0 line-clamp-2 font-sans">{p.excerpt}</p>}
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+</Layout>

@@ -1,0 +1,65 @@
+---
+// Sitewide announcement bar (Wave 2). Dismissal is remembered per browser
+// (localStorage keyed by announcement id). Highest priority shows first.
+import { getLiveAnnouncements } from '../../lib/cms/query';
+
+const announcements = await getLiveAnnouncements();
+---
+{announcements.length > 0 && (
+  <div class="bg-blue-600 text-white text-sm font-sans" data-announcements>
+    {announcements.map((a) => (
+      <div
+        class="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-center gap-3 text-center"
+        data-announcement={a.id}
+        data-umami-event="announcement-view"
+        data-umami-props={JSON.stringify({ id: a.id, kind: a.kind })}
+      >
+        <span class="text-white/95">
+          {a.title}
+          {a.description ? ` — ${a.description}` : ''}
+        </span>
+        {a.button_label && (
+          <a
+            href={a.button_url || '#'}
+            class="font-semibold underline underline-offset-2 hover:text-blue-100 whitespace-nowrap no-underline"
+            data-umami-event="announcement-click"
+            data-umami-props={JSON.stringify({ id: a.id, kind: a.kind, label: a.button_label })}
+          >
+            {a.button_label}
+          </a>
+        )}
+        {a.dismissible && (
+          <button
+            type="button"
+            data-dismiss={a.id}
+            class="ml-1 text-white/70 hover:text-white bg-transparent border-none cursor-pointer font-sans"
+            aria-label="Dismiss announcement"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    ))}
+  </div>
+)}
+<script>
+  (function () {
+    try {
+      const dismissed = new Set(JSON.parse(localStorage.getItem('bf-dismissed') || '[]'));
+      document.querySelectorAll('[data-announcement]').forEach((el) => {
+        if (dismissed.has(el.getAttribute('data-announcement'))) el.remove();
+      });
+      document.querySelectorAll('[data-dismiss]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-dismiss');
+          btn.closest('[data-announcement]')?.remove();
+          const set = new Set(JSON.parse(localStorage.getItem('bf-dismissed') || '[]'));
+          set.add(id);
+          localStorage.setItem('bf-dismissed', JSON.stringify([...set]));
+        });
+      });
+    } catch (_) {
+      /* localStorage unavailable — bar still renders */
+    }
+  })();
+</script>

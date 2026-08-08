@@ -1,11 +1,26 @@
 ﻿---
 import Layout from '../layouts/Layout.astro';
+import { organization, webSite } from '../lib/seo/jsonld';
+import { getSiteSettings } from '../lib/cms/settings';
+import { cacheHeaders, cacheTagsFor } from '../lib/cache';
+
 const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
+const settings = await getSiteSettings();
+const siteName = (settings?.site_name as string) || 'Origin-ERP';
+const siteOrigin = Astro.site?.origin ?? 'https://perfecterp.com';
+const homeJsonLd = [organization(siteName, siteOrigin), webSite(siteName, siteOrigin)];
+
+// CDN caching per design D2/R4: banner/announcement publishes purge these tags.
+for (const [k, v] of Object.entries(cacheHeaders(cacheTagsFor(Astro.url.pathname)))) {
+  Astro.response.headers.set(k, v);
+}
+
+export const prerender = false;
 ---
 
-<Layout title="All-In-One SME ERP Software">
+<Layout title="All-In-One SME ERP Software" jsonld={homeJsonLd}>
 	<!-- Hero Section -->
-	<section class="relative min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-32 pb-16 overflow-hidden bg-white">
+	<section data-section="hero" class="relative min-h-[85vh] flex flex-col items-center justify-center text-center px-6 pt-32 pb-16 overflow-hidden bg-white">
 		<!-- Soft background glow -->
 		<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse-slow"></div>
 		
@@ -20,15 +35,15 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 			</h1>
 			
 			<p class="text-base md:text-lg text-slate-500 max-w-xl leading-relaxed mb-10 font-sans">
-				Manage your entire business in one place. CRM, Projects, Inventory, Accounting, HR and more â€” all integrated, all simple.
+				Manage your entire business in one place. CRM, Projects, Inventory, Accounting, HR and more — all integrated, all simple.
 			</p>
 			
 			<div class="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-md mb-8">
-				<a href={appUrl + "/login"} class="px-8 py-3.5 rounded-full bg-blue-600 text-white font-semibold text-base hover:bg-blue-700 hover:scale-102 transition-all shadow-md shadow-blue-500/20 no-underline font-sans flex items-center justify-center gap-2">
+				<a href={appUrl + "/login"} data-umami-event="start-trial-click" data-umami-event-location="hero" class="px-8 py-3.5 rounded-full bg-blue-600 text-white font-semibold text-base hover:bg-blue-700 hover:scale-102 transition-all shadow-md shadow-blue-500/20 no-underline font-sans flex items-center justify-center gap-2">
 					Start Free Trial
 					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2.5} d="M9 5l7 7-7 7" /></svg>
 				</a>
-				<a href={appUrl + "/login"} class="px-8 py-3.5 rounded-full bg-white border border-slate-200 text-slate-700 font-semibold text-base hover:bg-slate-50 transition-all no-underline font-sans flex items-center justify-center gap-2">
+				<a href={appUrl + "/login"} data-umami-event="book-demo-click" data-umami-event-location="hero" class="px-8 py-3.5 rounded-full bg-white border border-slate-200 text-slate-700 font-semibold text-base hover:bg-slate-50 transition-all no-underline font-sans flex items-center justify-center gap-2">
 					Book a Demo
 					<!-- Play icon -->
 					<svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
@@ -44,7 +59,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 	</section>
 
 	<!-- High-fidelity Dashboard Mockup -->
-	<section class="px-6 pb-24 bg-white">
+	<section data-section="product-preview" class="px-6 pb-24 bg-white">
 		<div class="max-w-5xl mx-auto">
 			<!-- Browser Card Mockup -->
 			<div class="rounded-2xl border border-slate-200/80 shadow-2xl bg-white overflow-hidden">
@@ -192,7 +207,7 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 	</section>
 
 	<!-- Interactive Module Wheel Selector Section -->
-	<section class="py-24 px-6 bg-slate-50/50 border-t border-b border-slate-200/80">
+	<section id="features" data-section="modules" class="py-24 px-6 bg-slate-50/50 border-t border-b border-slate-200/80">
 		<div class="max-w-6xl mx-auto flex flex-col items-center">
 			<div class="text-center mb-16">
 				<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 mb-4 text-xs text-blue-700 font-semibold uppercase font-sans">
@@ -334,11 +349,11 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 	</section>
 
 	<!-- Call To Action -->
-	<section class="py-24 px-6 bg-gradient-to-t from-blue-50 to-white text-center">
+	<section data-section="final-cta" class="py-24 px-6 bg-gradient-to-t from-blue-50 to-white text-center">
 		<div class="max-w-4xl mx-auto">
 			<h2 class="text-3xl md:text-5xl font-bold font-display text-slate-900 mb-6">Ready to Streamline Your SME Operations?</h2>
 			<p class="text-slate-500 text-base md:text-lg max-w-lg mx-auto mb-10 leading-relaxed font-sans">Deploy your ERP environment in less than 5 minutes. No credit card required during trial.</p>
-			<a href={appUrl + "/login"} class="inline-block px-10 py-4 rounded-full bg-blue-600 text-white hover:bg-blue-700 font-bold text-base hover:scale-103 transition-all shadow-lg shadow-blue-500/20 no-underline font-sans">
+			<a href={appUrl + "/login"} data-umami-event="start-trial-click" data-umami-event-location="final-cta" class="inline-block px-10 py-4 rounded-full bg-blue-600 text-white hover:bg-blue-700 font-bold text-base hover:scale-103 transition-all shadow-lg shadow-blue-500/20 no-underline font-sans">
 				Start Your Free Trial
 			</a>
 		</div>

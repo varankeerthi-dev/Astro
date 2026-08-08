@@ -1,13 +1,63 @@
-﻿---
+---
 import '../styles/global.css';
+import Seo from '../components/seo/Seo.astro';
+import Analytics from '../components/Analytics.astro';
+import AnnouncementBar from '../components/public/AnnouncementBar.astro';
+import BannerCarousel from '../components/public/BannerCarousel.astro';
+import { getSiteSettings, getFooterLinks } from '../lib/cms/settings';
 
 interface Props {
 	title: string;
 	description?: string;
+	/** Optional page_seo record from the CMS (overrides title/description). */
+	seo?: Record<string, unknown> | null;
+	/** Optional schema.org JSON-LD payload(s) for this page. */
+	jsonld?: Record<string, unknown> | Record<string, unknown>[] | null;
 }
 
-const { title, description = "Origin-ERP - The all-in-one business management platform built for modern construction, manufacturing & trading companies." } = Astro.props;
+const { title, description, seo = null, jsonld = null } = Astro.props;
 const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
+
+// ── Website Settings (CMS) with graceful fallback to the pre-CMS values ─────
+const settings = await getSiteSettings();
+const siteName = (settings?.site_name as string) || 'Origin-ERP';
+const siteInitial = siteName.charAt(0).toUpperCase();
+const tagline = (settings?.tagline as string) || 'the all-in-one business management platform';
+const footerIntro = `${siteName} is ${tagline.charAt(0).toLowerCase() + tagline.slice(1)} built for modern construction, manufacturing & trading companies.`;
+const defaultDescription =
+	description ??
+	`${siteName} - The all-in-one business management platform built for modern construction, manufacturing & trading companies.`;
+const year = new Date().getFullYear();
+const copyright = (
+	(settings?.copyright_text as string) || `© {year} ${siteName}. All rights reserved.`
+).replace('{year}', String(year));
+
+// ── Footer links (CMS) with fallback to the previous hardcoded set ──────────
+const dbLinks = await getFooterLinks();
+const useDb = dbLinks.length > 0;
+const byColumn = (col: string) => dbLinks.filter((l) => l.column_name === col);
+const fallbackLinks: Record<string, { label: string; url: string }[]> = {
+	Product: [
+		{ label: 'Features', url: '/#features' },
+		{ label: 'Pricing', url: '/pricing' },
+		{ label: 'Login', url: appUrl + '/login' },
+	],
+	Industries: [
+		{ label: 'Manufacturing', url: '/industries/manufacturing-erp' },
+		{ label: 'Fabrication', url: '/industries/fabrication-erp' },
+		{ label: 'Construction', url: '/industries/construction-erp' },
+		{ label: 'SME Software', url: '/industries/sme-erp-software' },
+	],
+	Support: [
+		{ label: 'Help Center', url: '/help' },
+		{ label: 'Contact Support', url: '#' },
+	],
+	Legal: [
+		{ label: 'Privacy Policy', url: '#' },
+		{ label: 'Terms of Service', url: '#' },
+	],
+};
+const columnLinks = (col: string) => (useDb ? byColumn(col) : fallbackLinks[col] ?? []);
 ---
 
 <!doctype html>
@@ -17,30 +67,31 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
-		
-		<!-- SEO Meta Tags -->
-		<title>{title} | Origin-ERP</title>
-		<meta name="description" content={description} />
-		
-		<!-- Open Graph / Facebook -->
-		<meta property="og:type" content="website" />
-		<meta property="og:title" content={title + " | Origin-ERP"} />
-		<meta property="og:description" content={description} />
-		
+
+		<!-- SEO Meta Tags (central component: canonical, robots, OG, Twitter, JSON-LD, GSC) -->
+		<Seo title={title} description={defaultDescription} seo={seo} settings={settings} jsonld={jsonld} />
+
+		<!-- Analytics: Umami + Clarity, IDs from Website Settings (env fallback) -->
+		<Analytics settings={settings} />
+
 		<!-- Google Fonts -->
 		<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+		{settings?.header_scripts && <Fragment set:html={String(settings.header_scripts)} />}
 	</head>
 	<body class="bg-slate-50 text-slate-900 antialiased font-sans">
+		<!-- Announcements (Wave 2): sitewide top bar -->
+		<AnnouncementBar />
+
 		<!-- Header -->
 		<nav class="fixed top-0 left-0 right-0 z-50 px-6 py-4 md:px-12 flex justify-between items-center bg-white/90 backdrop-blur-md border-b border-slate-200/80 transition-all duration-300 shadow-xs">
 			<div class="flex items-center gap-3">
 				<!-- Blue logo icon -->
-				<div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20 font-display">O</div>
-				<a href="/" class="text-xl font-bold tracking-tight text-slate-900 hover:text-slate-700 no-underline font-display">Origin-ERP</a>
+				<div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20 font-display">{siteInitial}</div>
+				<a href="/" class="text-xl font-bold tracking-tight text-slate-900 hover:text-slate-700 no-underline font-display">{siteName}</a>
 			</div>
-			
+
 			<div class="hidden md:flex items-center gap-8">
 				<a href="/#features" class="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Features</a>
 				<a href="/pricing" class="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Pricing</a>
@@ -58,13 +109,17 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 					</div>
 				</div>
 				<a href="/help" class="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Help Center</a>
+				<a href="/blog" class="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Blog</a>
 			</div>
-			
+
 			<div class="flex items-center gap-4">
 				<a href={appUrl + "/login"} class="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors no-underline hidden sm:inline-block font-sans">Login</a>
 				<a href={appUrl + "/login"} class="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-blue-500/10 hover:scale-102 no-underline font-sans">Book a Demo</a>
 			</div>
 		</nav>
+
+		<!-- Homepage banner carousel (Wave 1) -->
+		{Astro.url.pathname === '/' && <BannerCarousel />}
 
 		<!-- Main Content -->
 		<slot />
@@ -74,44 +129,46 @@ const appUrl = import.meta.env.PUBLIC_APP_URL || 'https://app.perfecterp.com';
 			<div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
 				<div class="flex flex-col gap-4">
 					<div class="flex items-center gap-3">
-						<div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-base text-white font-display">O</div>
-						<span class="text-lg font-bold tracking-tight text-slate-900 font-display">Origin-ERP</span>
+						<div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-base text-white font-display">{siteInitial}</div>
+						<span class="text-lg font-bold tracking-tight text-slate-900 font-display">{siteName}</span>
 					</div>
-					<p class="text-sm text-slate-500 leading-relaxed max-w-xs">Origin-ERP is the all-in-one business management platform built for modern construction, manufacturing & trading companies.</p>
+					<p class="text-sm text-slate-500 leading-relaxed max-w-xs">{footerIntro}</p>
 				</div>
 				<div>
 					<h4 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 font-sans">Product</h4>
 					<ul class="list-none p-0 flex flex-col gap-2.5">
-						<li><a href="/#features" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Features</a></li>
-						<li><a href="/pricing" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Pricing</a></li>
-						<li><a href={appUrl + "/login"} class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Login</a></li>
+						{columnLinks('Product').map((l) => (
+							<li><a href={l.url} class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">{l.label}</a></li>
+						))}
 					</ul>
 				</div>
 				<div>
 					<h4 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 font-sans">Industries</h4>
 					<ul class="list-none p-0 flex flex-col gap-2.5">
-						<li><a href="/industries/manufacturing-erp" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Manufacturing</a></li>
-						<li><a href="/industries/fabrication-erp" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Fabrication</a></li>
-						<li><a href="/industries/construction-erp" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Construction</a></li>
-						<li><a href="/industries/sme-erp-software" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">SME Software</a></li>
+						{columnLinks('Industries').map((l) => (
+							<li><a href={l.url} class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">{l.label}</a></li>
+						))}
 					</ul>
 				</div>
 				<div>
 					<h4 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4 font-sans">Support</h4>
 					<ul class="list-none p-0 flex flex-col gap-2.5">
-						<li><a href="/help" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Help Center</a></li>
-						<li><a href="#" class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">Contact Support</a></li>
+						{columnLinks('Support').map((l) => (
+							<li><a href={l.url} class="text-sm text-slate-600 hover:text-slate-900 transition-colors no-underline font-sans">{l.label}</a></li>
+						))}
 					</ul>
 				</div>
 			</div>
 			<div class="max-w-7xl mx-auto border-t border-slate-200 mt-12 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-slate-400">
-				<span>Â© {new Date().getFullYear()} Origin-ERP. All rights reserved.</span>
+				<span>{copyright}</span>
 				<div class="flex gap-6">
-					<a href="#" class="hover:text-slate-600 transition-colors no-underline">Privacy Policy</a>
-					<a href="#" class="hover:text-slate-600 transition-colors no-underline">Terms of Service</a>
+					{columnLinks('Legal').map((l) => (
+						<a href={l.url} class="hover:text-slate-600 transition-colors no-underline">{l.label}</a>
+					))}
 				</div>
 			</div>
 		</footer>
+		{settings?.footer_scripts && <Fragment set:html={String(settings.footer_scripts)} />}
 	</body>
 </html>
 

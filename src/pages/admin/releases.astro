@@ -1,0 +1,199 @@
+---
+// /admin/releases — release notes + the Feature Discovery composer
+// (one publish can fan out to KB article, release notes, announcement,
+// banner, ERP badge, in-app notification).
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { apiGet, apiSend, formToObject, STATUS_LABEL, STATUS_BADGE } from '../../lib/cms/admin-fetch';
+import { supabaseAdmin } from '../../lib/supabase/admin';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+const tab = params.get('tab') ?? 'notes';
+const q = params.get('q') ?? '';
+const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+const perPage = 20;
+const editId = params.get('edit') ?? '';
+const notice = params.get('ok') ?? '';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('_action') ?? '');
+  try {
+    if (action === 'create-note') {
+      const payload = formToObject(form);
+      delete payload._action;
+      payload.kind = 'note';
+      const res = await apiSend(Astro, '/api/admin/releases', payload);
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/releases?tab=notes&ok=created');
+    } else if (action === 'create-release') {
+      const payload = formToObject(form);
+      delete payload._action;
+      for (const k of ['dest_help_article', 'dest_release_notes', 'dest_erp_badge', 'dest_announcement', 'dest_banner', 'dest_inapp_notification']) {
+        payload[k] = payload[k] !== null;
+      }
+      const res = await apiSend(Astro, '/api/admin/releases', payload);
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/releases?tab=releases&ok=created');
+    } else if (action === 'status') {
+      const id = String(form.get('id') ?? '');
+      const to = String(form.get('to') ?? '');
+      const body: Record<string, unknown> = { action: to };
+      const at = String(form.get('at') ?? '');
+      if (to === 'schedule' && at) body.at = new Date(at).toISOString();
+      const endpoint = String(form.get('kind') ?? '') === 'note' ? '/api/admin/releases/' : '/api/admin/releases/';
+      const res = await apiSend(Astro, `${endpoint}${id}`, body);
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/releases?ok=' + to);
+    } else if (action === 'delete') {
+      const id = String(form.get('id') ?? '');
+      const res = await apiSend(Astro, `/api/admin/releases/${id}`, {}, 'DELETE');
+      if (!res.ok) error = res.error; else return Astro.redirect('/admin/releases?ok=deleted');
+    }
+  } catch (e: any) { error = e?.message ?? String(e); }
+}
+
+let notes: { rows: any[]; total: number; page: number } = { rows: [], total: 0, page: 1 };
+let releases: { rows: any[]; total: number; page: number } = { rows: [], total: 0, page: 1 };
+try {
+  notes = await apiGet(Astro, `/api/admin/releases?kind=note&q=${encodeURIComponent(q)}&page=${page}&perPage=${perPage}`);
+  releases = await apiGet(Astro, `/api/admin/releases?kind=release&q=${encodeURIComponent(q)}&page=${page}&perPage=${perPage}`);
+} catch (e: any) { error = e?.message ?? String(e); }
+const [{ data: articles }, { data: announcements }, { data: banners }] = await Promise.all([
+  supabaseAdmin.from('kb_articles').select('id, title').is('deleted_at', null).order('updated_at', { ascending: false }).limit(200),
+  supabaseAdmin.from('announcements').select('id, title').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
+  supabaseAdmin.from('banners').select('id, title_html').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
+]);
+const pages = Math.max(1, Math.ceil(Math.max(notes.total, releases.total, 1) / perPage));
+const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white';
+const labelCls = 'text-sm font-semibold text-slate-700';
+const BADGES = ['new', 'improved', 'fixed'];
+---
+<AdminLayout title="Releases" active="/admin/releases">
+  {notice && <div class="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">Done — {notice}.</div>}
+  {error && <div class="mb-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">Error: {error}</div>}
+
+  <div class="flex gap-2 mb-6">
+    <a href="/admin/releases?tab=notes" class={`px-4 py-2 rounded-full text-sm font-semibold no-underline ${tab === 'notes' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>Release notes</a>
+    <a href="/admin/releases?tab=releases" class={`px-4 py-2 rounded-full text-sm font-semibold no-underline ${tab === 'releases' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>Feature releases</a>
+  </div>
+
+  {tab === 'notes' && (
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 self-start">
+        <h2 class="text-base font-bold font-display mb-4">New release note</h2>
+        <form method="POST" class="flex flex-col gap-4">
+          <input type="hidden" name="_action" value="create-note" />
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex flex-col gap-1.5"><span class={labelCls}>Version</span>
+              <input class={inputCls} name="version" placeholder="2.4.0" /></label>
+            <label class="flex flex-col gap-1.5"><span class={labelCls}>Module</span>
+              <input class={inputCls} name="module" placeholder="CRM" /></label>
+          </div>
+          <label class="flex flex-col gap-1.5"><span class={labelCls}>Badge</span>
+            <select name="badge" class={inputCls}>{BADGES.map((b) => <option value={b}>{b}</option>)}</select></label>
+          <label class="flex flex-col gap-1.5"><span class={labelCls}>Title</span>
+            <input class={inputCls} name="title" required /></label>
+          <label class="flex flex-col gap-1.5"><span class={labelCls}>Description</span>
+            <textarea class={inputCls} name="description" rows="3"></textarea></label>
+          <label class="flex flex-col gap-1.5"><span class={labelCls}>Release date</span>
+            <input type="date" class={inputCls} name="released_on" /></label>
+          <button type="submit" class="self-start px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer">Save note</button>
+        </form>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden self-start">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+            <tr><th class="px-4 py-3">Note</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Actions</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {notes.rows.map((r: any) => (
+              <tr class="hover:bg-slate-50/60">
+                <td class="px-4 py-3">
+                  <p class="font-semibold text-slate-800 m-0">{r.title}</p>
+                  <p class="text-xs text-slate-400 m-0">{r.version ? `v${r.version}` : ''} {r.module ? `· ${r.module}` : ''} · <span class="uppercase text-[10px] font-bold">{r.badge}</span></p>
+                </td>
+                <td class="px-4 py-3"><span class={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${STATUS_BADGE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-2">
+                    {r.status !== 'published' && (
+                      <form method="POST" class="inline"><input type="hidden" name="_action" value="status" /><input type="hidden" name="kind" value="note" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="publish" /><button class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full cursor-pointer">Publish</button></form>
+                    )}
+                    <form method="POST" class="inline" onsubmit="return confirm('Delete this note?')"><input type="hidden" name="_action" value="delete" /><input type="hidden" name="id" value={r.id} /><button class="text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full cursor-pointer">Delete</button></form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {notes.rows.length === 0 && <tr><td class="px-4 py-8 text-center text-sm text-slate-400" colSpan={3}>No release notes yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}
+
+  {tab === 'releases' && (
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 self-start">
+        <h2 class="text-base font-bold font-display mb-4">Feature release composer</h2>
+        <p class="text-xs text-slate-400 mb-4">One publish can fan out to any combination of destinations — help article, release notes, announcement, banner, ERP badge, in-app notification.</p>
+        <form method="POST" class="flex flex-col gap-4">
+          <input type="hidden" name="_action" value="create-release" />
+          <label class="flex flex-col gap-1.5"><span class={labelCls}>Title</span>
+            <input class={inputCls} name="title" required /></label>
+          <label class="flex flex-col gap-1.5"><span class={labelCls}>Summary</span>
+            <textarea class={inputCls} name="summary" rows="2"></textarea></label>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label class="flex flex-col gap-1.5"><span class={labelCls}>Help article</span>
+              <select name="kb_article_id" class={inputCls}><option value="">— none —</option>{(articles ?? []).map((a) => <option value={a.id}>{a.title}</option>)}</select></label>
+            <label class="flex flex-col gap-1.5"><span class={labelCls}>Announcement</span>
+              <select name="announcement_id" class={inputCls}><option value="">— none —</option>{(announcements ?? []).map((a) => <option value={a.id}>{a.title}</option>)}</select></label>
+            <label class="flex flex-col gap-1.5"><span class={labelCls}>Banner</span>
+              <select name="banner_id" class={inputCls}><option value="">— none —</option>{(banners ?? []).map((b) => <option value={b.id}>{b.title_html ?? b.id}</option>)}</select></label>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-700">
+            <label class="flex items-center gap-2"><input type="checkbox" name="dest_help_article" /> Create help article</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="dest_release_notes" /> Add release note</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="dest_announcement" /> Show website announcement</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="dest_banner" /> Display homepage banner</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="dest_erp_badge" /> “New” badge in ERP (webhook)</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="dest_inapp_notification" /> In-app notification (webhook)</label>
+          </div>
+          <label class="flex flex-col gap-1.5"><span class={labelCls}>Publish at</span>
+            <input type="datetime-local" class={inputCls} name="publish_at" /></label>
+          <button type="submit" class="self-start px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer">Create feature release</button>
+        </form>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden self-start">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+            <tr><th class="px-4 py-3">Release</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Actions</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {releases.rows.map((r: any) => (
+              <tr class="hover:bg-slate-50/60">
+                <td class="px-4 py-3">
+                  <p class="font-semibold text-slate-800 m-0">{r.title}</p>
+                  <p class="text-xs text-slate-400 m-0">
+                    {[['dest_help_article', 'help'], ['dest_release_notes', 'notes'], ['dest_announcement', 'announce'], ['dest_banner', 'banner'], ['dest_erp_badge', 'ERP badge'], ['dest_inapp_notification', 'in-app']]
+                      .filter(([k]) => r[k]).map(([, l]) => l).join(' · ') || 'no destinations'}
+                  </p>
+                </td>
+                <td class="px-4 py-3"><span class={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${STATUS_BADGE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-2">
+                    {r.status !== 'published' && (
+                      <form method="POST" class="inline"><input type="hidden" name="_action" value="status" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="publish" /><button class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full cursor-pointer">Publish</button></form>
+                    )}
+                    <form method="POST" class="inline" onsubmit="return confirm('Delete this feature release?')"><input type="hidden" name="_action" value="delete" /><input type="hidden" name="id" value={r.id} /><button class="text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full cursor-pointer">Delete</button></form>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {releases.rows.length === 0 && <tr><td class="px-4 py-8 text-center text-sm text-slate-400" colSpan={3}>No feature releases yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}
+</AdminLayout>

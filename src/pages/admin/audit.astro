@@ -1,0 +1,80 @@
+---
+// /admin/audit — full audit trail with entity/action filters and search.
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { apiGet } from '../../lib/cms/admin-fetch';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+const entity = params.get('entity') ?? '';
+const action = params.get('action') ?? '';
+const q = params.get('q') ?? '';
+const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+let error = '';
+
+let list: { rows: any[]; total: number; page: number } = { rows: [], total: 0, page: 1 };
+try {
+  list = await apiGet(Astro, `/api/admin/audit?entity=${encodeURIComponent(entity)}&action=${encodeURIComponent(action)}&q=${encodeURIComponent(q)}&page=${page}`);
+} catch (e: any) { error = e?.message ?? String(e); }
+
+const ENTITIES = ['banner', 'announcement', 'page', 'blog post', 'KB article', 'location page', 'setting', 'user', 'suggested edit', 'feature release', 'release note', 'session'];
+const ACTIONS = ['create', 'update', 'publish', 'unpublish', 'schedule', 'archive', 'restore', 'delete', 'duplicate', 'login', 'accept', 'reject'];
+const pages = Math.max(1, Math.ceil(list.total / 50));
+const ACTION_COLOR: Record<string, string> = {
+  publish: 'text-emerald-700 bg-emerald-50',
+  unpublish: 'text-amber-700 bg-amber-50',
+  schedule: 'text-amber-700 bg-amber-50',
+  archive: 'text-slate-600 bg-slate-100',
+  delete: 'text-red-700 bg-red-50',
+  create: 'text-blue-700 bg-blue-50',
+  update: 'text-blue-700 bg-blue-50',
+};
+---
+<AdminLayout title="Audit Log" active="/admin/audit">
+  {error && <div class="mb-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">Error: {error}</div>}
+
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+    <form method="get" class="flex flex-wrap gap-2">
+      <input type="search" name="q" value={q} placeholder="Search summaries…" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white" />
+      <select name="entity" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white">
+        <option value="">All entities</option>
+        {ENTITIES.map((e) => <option value={e} selected={entity === e}>{e}</option>)}
+      </select>
+      <select name="action" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white">
+        <option value="">All actions</option>
+        {ACTIONS.map((a) => <option value={a} selected={action === a}>{a}</option>)}
+      </select>
+      <button type="submit" class="px-4 py-2 rounded-full bg-slate-800 text-white text-sm font-semibold cursor-pointer">Filter</button>
+    </form>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    {list.rows.length === 0 && <p class="text-sm text-slate-400 text-center py-12">No audit events match these filters.</p>}
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+        <tr><th class="px-4 py-3">When</th><th class="px-4 py-3">Action</th><th class="px-4 py-3">Entity</th><th class="px-4 py-3">Summary</th><th class="px-4 py-3">By</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {list.rows.map((r: any) => (
+          <tr class="hover:bg-slate-50/60">
+            <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{new Date(r.created_at).toLocaleString()}</td>
+            <td class="px-4 py-3">
+              <span class={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${ACTION_COLOR[r.action] ?? 'bg-slate-100 text-slate-600'}`}>{r.action}</span>
+            </td>
+            <td class="px-4 py-3 text-slate-600">{r.entity}</td>
+            <td class="px-4 py-3 text-slate-600 max-w-[320px] truncate">{r.summary ?? ''}</td>
+            <td class="px-4 py-3 text-xs text-slate-400">{r.actor?.full_name ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  {pages > 1 && (
+    <nav class="mt-6 flex items-center justify-center gap-3">
+      {page > 1 && <a href={`/admin/audit?entity=${encodeURIComponent(entity)}&action=${encodeURIComponent(action)}&q=${encodeURIComponent(q)}&page=${page - 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">← Prev</a>}
+      <span class="text-sm text-slate-500">Page {page} of {pages}</span>
+      {page < pages && <a href={`/admin/audit?entity=${encodeURIComponent(entity)}&action=${encodeURIComponent(action)}&q=${encodeURIComponent(q)}&page=${page + 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">Next →</a>}
+    </nav>
+  )}
+</AdminLayout>

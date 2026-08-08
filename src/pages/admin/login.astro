@@ -1,0 +1,94 @@
+---
+// /admin/login — invite-only sign in (accounts are created in Supabase Auth
+// or via /admin/users; there is no public signup).
+import '../../styles/global.css';
+import { createClient } from '@supabase/supabase-js';
+import { ACCESS_COOKIE, getSessionProfile } from '../../lib/auth/session';
+import { supabaseAdmin } from '../../lib/supabase/admin';
+
+export const prerender = false;
+
+// Already signed in? Go straight to the dashboard.
+const existing = await getSessionProfile(Astro.cookies);
+if (existing) return Astro.redirect('/admin');
+
+let error = Astro.url.searchParams.get('error') ? 'Invalid email or password.' : '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const email = String(form.get('email') ?? '').trim();
+  const password = String(form.get('password') ?? '');
+  const url = import.meta.env.PUBLIC_SUPABASE_URL as string | undefined;
+  const anon = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string | undefined;
+
+  if (!url || !anon) {
+    error = 'CMS is not configured yet — set PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY.';
+  } else {
+    const supabase = createClient(url, anon, { auth: { persistSession: false } });
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    if (authError || !data.session) {
+      error = 'Invalid email or password.';
+    } else {
+      Astro.cookies.set(ACCESS_COOKIE, data.session.access_token, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        maxAge: data.session.expires_in,
+      });
+      try {
+        await supabaseAdmin.from('audit_log').insert({
+          action: 'login', entity: 'session', summary: `Sign-in: ${email}`,
+        });
+      } catch { /* auditing is best-effort */ }
+      const next = Astro.url.searchParams.get('next');
+      return Astro.redirect(next && next.startsWith('/admin') ? next : '/admin');
+    }
+  }
+}
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Sign in | CMS Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-100 text-slate-900 antialiased font-sans min-h-screen flex items-center justify-center px-6">
+    <div class="w-full max-w-sm">
+      <div class="flex items-center justify-center gap-2.5 mb-8">
+        <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white font-display">B</div>
+        <span class="text-xl font-bold font-display">CMS Admin</span>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+        <h1 class="text-lg font-bold font-display mb-1">Sign in</h1>
+        <p class="text-sm text-slate-500 mb-6">Accounts are invite-only. Ask an administrator for access.</p>
+        {error && (
+          <div class="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>
+        )}
+        <form method="POST" class="flex flex-col gap-4">
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-semibold text-slate-700">Email</span>
+            <input type="email" name="email" required autocomplete="email"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500" />
+          </label>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-sm font-semibold text-slate-700">Password</span>
+            <input type="password" name="password" required autocomplete="current-password"
+              class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500" />
+          </label>
+          <button type="submit"
+            class="mt-2 w-full px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors">
+            Sign in
+          </button>
+        </form>
+      </div>
+      <p class="text-center mt-6"><a href="/" class="text-xs text-slate-400 hover:text-slate-600 no-underline">← Back to site</a></p>
+    </div>
+  </body>
+</html>

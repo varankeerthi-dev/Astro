@@ -1,0 +1,210 @@
+---
+// /admin/banners — list (search/filter/paginate), create/edit form,
+// publish/schedule/archive/duplicate/delete, drag-order up/down buttons.
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { apiGet, apiSend, formToObject, STATUS_LABEL, STATUS_BADGE } from '../../lib/cms/admin-fetch';
+import { supabaseAdmin } from '../../lib/supabase/admin';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+const q = params.get('q') ?? '';
+const status = params.get('status') ?? '';
+const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
+const perPage = 20;
+const editId = params.get('edit') ?? '';
+const newMode = params.get('new') === '1';
+const notice = params.get('ok') ?? '';
+let error = '';
+
+// ── POST actions ────────────────────────────────────────────────────────────
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('_action') ?? '');
+  try {
+    if (action === 'create') {
+      const payload = formToObject(form);
+      delete payload._action;
+      const res = await apiSend(Astro, '/api/admin/banners', payload);
+      if (!res.ok) error = res.error;
+      else return Astro.redirect('/admin/banners?ok=created');
+    } else if (action === 'update' && editId) {
+      const payload = formToObject(form);
+      delete payload._action;
+      const res = await apiSend(Astro, `/api/admin/banners/${editId}`, payload, 'PATCH');
+      if (!res.ok) error = res.error;
+      else return Astro.redirect('/admin/banners?ok=updated');
+    } else if (action === 'status') {
+      const id = String(form.get('id') ?? '');
+      const to = String(form.get('to') ?? '');
+      const body: Record<string, unknown> = { action: to };
+      const at = String(form.get('at') ?? '');
+      if (to === 'schedule' && at) body.at = new Date(at).toISOString();
+      const res = await apiSend(Astro, `/api/admin/banners/${id}`, body);
+      if (!res.ok) error = res.error;
+      else return Astro.redirect('/admin/banners?ok=' + to);
+    } else if (action === 'duplicate') {
+      const id = String(form.get('id') ?? '');
+      const res = await apiSend(Astro, `/api/admin/banners/${id}`, { action: 'duplicate' });
+      if (!res.ok) error = res.error;
+      else return Astro.redirect('/admin/banners?ok=duplicated');
+    } else if (action === 'delete') {
+      const id = String(form.get('id') ?? '');
+      const res = await apiSend(Astro, `/api/admin/banners/${id}`, {}, 'DELETE');
+      if (!res.ok) error = res.error;
+      else return Astro.redirect('/admin/banners?ok=deleted');
+    } else if (action === 'reorder') {
+      const id = String(form.get('id') ?? '');
+      const dir = Number(form.get('dir') ?? 0);
+      const ids = (list.rows as { id: string }[]).map((r) => r.id);
+      const idx = ids.indexOf(id);
+      if (idx >= 0) {
+        const j = idx + dir;
+        if (j >= 0 && j < ids.length) {
+          [ids[idx], ids[j]] = [ids[j], ids[idx]];
+          const res = await apiSend(Astro, '/api/admin/banners', { action: 'reorder', ids });
+          if (!res.ok) error = res.error;
+          else return Astro.redirect('/admin/banners?ok=reordered');
+        }
+      }
+    }
+  } catch (e: any) {
+    error = e?.message ?? String(e);
+  }
+}
+
+// ── Data ────────────────────────────────────────────────────────────────────
+let list: { rows: any[]; total: number; page: number; perPage: number } = { rows: [], total: 0, page: 1, perPage };
+try {
+  list = await apiGet(Astro, `/api/admin/banners?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}&page=${page}&perPage=${perPage}`);
+} catch (e: any) {
+  error = e?.message ?? String(e);
+}
+let editRow: any = null;
+if (editId) {
+  try {
+    editRow = await apiGet(Astro, `/api/admin/banners/${editId}`);
+  } catch {}
+}
+const { data: mediaItems } = await supabaseAdmin
+  .from('media_assets').select('id, filename').is('deleted_at', null)
+  .order('created_at', { ascending: false }).limit(100);
+const mediaOptions = mediaItems ?? [];
+const pages = Math.max(1, Math.ceil(list.total / perPage));
+const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white';
+const labelCls = 'text-sm font-semibold text-slate-700';
+const pick = (r: any, k: string) => (editRow ? (editRow[k] ?? '') : '');
+---
+<AdminLayout title="Banners" active="/admin/banners">
+  {notice && <div class="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">Done — {notice}.</div>}
+  {error && <div class="mb-4 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">Error: {error}</div>}
+
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <form method="get" class="flex flex-wrap gap-2">
+        <input type="search" name="q" value={q} placeholder="Search banners…" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white" />
+        <select name="status" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white">
+          <option value="">All statuses</option>
+          {Object.entries(STATUS_LABEL).map(([v, l]) => <option value={v} selected={status === v}>{l}</option>)}
+        </select>
+        <button type="submit" class="px-4 py-2 rounded-full bg-slate-800 text-white text-sm font-semibold cursor-pointer">Filter</button>
+      </form>
+      <a href="/admin/banners?new=1" class="px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-semibold no-underline">+ New banner</a>
+    </div>
+  </div>
+
+  {(newMode || editId) && (
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      <h2 class="text-base font-bold font-display mb-4">{editId ? 'Edit banner' : 'New banner'}</h2>
+      <form method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input type="hidden" name="_action" value={editId ? 'update' : 'create'} />
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Title (HTML overlay)</span>
+          <input class={inputCls} name="title_html" value={pick(editRow, 'title_html')} placeholder="&lt;span class=&#39;text-blue-300&#39;&gt;New season&lt;/span&gt; offer" /></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Subtitle</span>
+          <input class={inputCls} name="subtitle" value={pick(editRow, 'subtitle')} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Desktop image (media)</span>
+          <select name="desktop_media_id" class={inputCls}>
+            <option value="">— none —</option>
+            {mediaOptions.map((m) => <option value={m.id} selected={pick(editRow, 'desktop_media_id') === m.id}>{m.filename}</option>)}
+          </select></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Mobile image (media)</span>
+          <select name="mobile_media_id" class={inputCls}>
+            <option value="">— none —</option>
+            {mediaOptions.map((m) => <option value={m.id} selected={pick(editRow, 'mobile_media_id') === m.id}>{m.filename}</option>)}
+          </select></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>CTA label</span>
+          <input class={inputCls} name="cta_label" value={pick(editRow, 'cta_label')} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>CTA URL</span>
+          <input class={inputCls} name="cta_url" value={pick(editRow, 'cta_url')} placeholder="/pricing" /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Button style</span>
+          <select name="cta_style" class={inputCls}>
+            {['primary', 'outline', 'ghost'].map((s) => <option value={s} selected={pick(editRow, 'cta_style') === s}>{s}</option>)}
+          </select></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Display order</span>
+          <input type="number" class={inputCls} name="display_order" value={pick(editRow, 'display_order') ?? 0} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Start (publish at)</span>
+          <input type="datetime-local" class={inputCls} name="publish_at" value={pick(editRow, 'publish_at') ? String(pick(editRow, 'publish_at')).slice(0, 16) : ''} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>End (unpublish at)</span>
+          <input type="datetime-local" class={inputCls} name="unpublish_at" value={pick(editRow, 'unpublish_at') ? String(pick(editRow, 'unpublish_at')).slice(0, 16) : ''} /></label>
+        <div class="md:col-span-2 flex gap-3">
+          <button type="submit" class="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer">Save draft</button>
+          {editId && <a href="/admin/banners" class="px-6 py-2.5 rounded-full bg-slate-100 text-slate-700 text-sm font-semibold no-underline">Cancel</a>}
+        </div>
+      </form>
+    </div>
+  )}
+
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    {list.rows.length === 0 && <p class="text-sm text-slate-400 text-center py-12">No banners found.</p>}
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+        <tr>
+          <th class="px-4 py-3">Title</th>
+          <th class="px-4 py-3">Status</th>
+          <th class="px-4 py-3">Window</th>
+          <th class="px-4 py-3">Order</th>
+          <th class="px-4 py-3 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {list.rows.map((r: any) => (
+          <tr class="hover:bg-slate-50/60">
+            <td class="px-4 py-3 font-semibold text-slate-800">{r.title_html ?? r.subtitle ?? '(untitled)'}</td>
+            <td class="px-4 py-3"><span class={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${STATUS_BADGE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
+            <td class="px-4 py-3 text-xs text-slate-500">
+              {r.publish_at ? new Date(r.publish_at).toLocaleString() : 'any'}
+              {r.unpublish_at ? ` → ${new Date(r.unpublish_at).toLocaleString()}` : ''}
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-1">
+                <form method="POST" class="inline"><input type="hidden" name="_action" value="reorder" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="dir" value="-1" /><button class="px-1.5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Move up">↑</button></form>
+                <form method="POST" class="inline"><input type="hidden" name="_action" value="reorder" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="dir" value="1" /><button class="px-1.5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Move down">↓</button></form>
+              </div>
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex items-center justify-end gap-2 flex-wrap">
+                {r.status !== 'published' && (
+                  <form method="POST" class="inline"><input type="hidden" name="_action" value="status" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="publish" /><button class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full cursor-pointer">Publish</button></form>
+                )}
+                {r.status !== 'archived' && (
+                  <form method="POST" class="inline"><input type="hidden" name="_action" value="status" /><input type="hidden" name="id" value={r.id} /><input type="hidden" name="to" value="archive" /><button class="text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full cursor-pointer">Archive</button></form>
+                )}
+                <form method="POST" class="inline"><input type="hidden" name="_action" value="duplicate" /><input type="hidden" name="id" value={r.id} /><button class="text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full cursor-pointer">Duplicate</button></form>
+                <a href={`/admin/banners?edit=${r.id}`} class="text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full no-underline">Edit</a>
+                <form method="POST" class="inline" onsubmit="return confirm('Archive (soft delete) this banner?')"><input type="hidden" name="_action" value="delete" /><input type="hidden" name="id" value={r.id} /><button class="text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full cursor-pointer">Delete</button></form>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  {pages > 1 && (
+    <nav class="mt-6 flex items-center justify-center gap-3">
+      {page > 1 && <a href={`/admin/banners?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}&page=${page - 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">← Prev</a>}
+      <span class="text-sm text-slate-500">Page {page} of {pages}</span>
+      {page < pages && <a href={`/admin/banners?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}&page=${page + 1}`} class="px-4 py-2 rounded-full bg-slate-100 text-sm font-semibold no-underline">Next →</a>}
+    </nav>
+  )}
+</AdminLayout>

@@ -1,0 +1,173 @@
+---
+// /admin/settings — Website Settings editor (administrator only).
+// Server-rendered form; saves via the service role with an audit entry.
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { supabaseAdmin, cmsServerReady } from '../../lib/supabase/admin';
+import { can } from '../../lib/auth/permissions';
+import { bustCmsCache } from '../../lib/cms/settings';
+
+export const prerender = false;
+
+const profile = Astro.locals.profile!;
+if (!can(profile.role, 'settings.manage')) {
+  return new Response('Forbidden — Website Settings are administrator-only.', { status: 403 });
+}
+
+// Columns this form is allowed to write (whitelist — never trust the client).
+const TEXT_FIELDS = [
+  'site_name', 'tagline', 'contact_email', 'contact_phone', 'copyright_text',
+  'default_seo_title', 'default_seo_description', 'gsc_verification',
+  'umami_website_id', 'clarity_project_id', 'cookie_consent_text',
+] as const;
+const AREA_FIELDS = ['robots_txt', 'header_scripts', 'footer_scripts'] as const;
+const SOCIAL_FIELDS = ['linkedin', 'twitter', 'youtube', 'instagram'] as const;
+
+let saved = false;
+let saveError = '';
+
+if (Astro.request.method === 'POST' && cmsServerReady) {
+  const form = await Astro.request.formData();
+  const patch: Record<string, unknown> = {};
+  for (const key of TEXT_FIELDS) patch[key] = String(form.get(key) ?? '').trim() || null;
+  for (const key of AREA_FIELDS) patch[key] = String(form.get(key) ?? '').trim() || null;
+  const social: Record<string, string> = {};
+  for (const key of SOCIAL_FIELDS) {
+    const v = String(form.get(`social_${key}`) ?? '').trim();
+    if (v) social[key] = v;
+  }
+  patch.social_links = social;
+  patch.sitemap_enabled = form.get('sitemap_enabled') === 'on';
+  patch.updated_by = profile.id;
+  patch.updated_at = new Date().toISOString();
+
+  // Audit diff: only fields that actually changed
+  const { data: before } = await supabaseAdmin.from('site_settings').select('*').eq('id', 1).single();
+  const diff: Record<string, [unknown, unknown]> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    const old = (before as Record<string, unknown> | null)?.[k] ?? null;
+    if (JSON.stringify(old) !== JSON.stringify(v)) diff[k] = [old, v];
+  }
+
+  const { error } = await supabaseAdmin.from('site_settings').update(patch).eq('id', 1);
+  if (error) {
+    saveError = error.message;
+  } else {
+    await supabaseAdmin.from('audit_log').insert({
+      actor_id: profile.id,
+      action: 'update',
+      entity: 'setting',
+      summary: 'Updated Website Settings',
+      diff,
+    });
+    bustCmsCache();
+    saved = true;
+  }
+}
+
+const { data: s } = cmsServerReady
+  ? await supabaseAdmin.from('site_settings').select('*').eq('id', 1).maybeSingle()
+  : { data: null };
+const val = (key: string) => ((s as Record<string, unknown> | null)?.[key] as string) ?? '';
+const socialVal = (key: string) =>
+  (((s as Record<string, unknown> | null)?.social_links as Record<string, string> | null)?.[key]) ?? '';
+
+const inputCls =
+  'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 bg-white';
+const labelCls = 'text-sm font-semibold text-slate-700';
+---
+<AdminLayout title="Website Settings" active="/admin/settings">
+  {!cmsServerReady && (
+    <div class="mb-6 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+      SUPABASE_SERVICE_ROLE_KEY is not set — settings can't be loaded or saved. See PHASE0-SETUP.md.
+    </div>
+  )}
+  {saved && (
+    <div class="mb-6 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+      Settings saved. Public pages pick up changes within ~60 seconds.
+    </div>
+  )}
+  {saveError && (
+    <div class="mb-6 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">Save failed: {saveError}</div>
+  )}
+
+  <form method="POST" class="max-w-3xl flex flex-col gap-8">
+    <section class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-base font-bold font-display mb-4">General</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Site name</span>
+          <input class={inputCls} name="site_name" value={val('site_name')} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Tagline</span>
+          <input class={inputCls} name="tagline" value={val('tagline')} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Contact email</span>
+          <input class={inputCls} type="email" name="contact_email" value={val('contact_email')} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Contact phone</span>
+          <input class={inputCls} name="contact_phone" value={val('contact_phone')} /></label>
+        <label class="flex flex-col gap-1.5 md:col-span-2"><span class={labelCls}>Copyright text ({'{year}'} = current year)</span>
+          <input class={inputCls} name="copyright_text" value={val('copyright_text')} /></label>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-base font-bold font-display mb-4">Default SEO</h2>
+      <div class="flex flex-col gap-4">
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Default SEO title</span>
+          <input class={inputCls} name="default_seo_title" value={val('default_seo_title')} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Default meta description</span>
+          <textarea class={inputCls} name="default_seo_description" rows="2">{val('default_seo_description')}</textarea></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Google Search Console verification token</span>
+          <input class={inputCls} name="gsc_verification" value={val('gsc_verification')} placeholder="paste the content= token" /></label>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-base font-bold font-display mb-4">Analytics</h2>
+      <p class="text-xs text-slate-400 mb-4">These override the PUBLIC_UMAMI_WEBSITE_ID / PUBLIC_CLARITY_PROJECT_ID env vars at runtime.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Umami Website ID</span>
+          <input class={inputCls} name="umami_website_id" value={val('umami_website_id')} /></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Microsoft Clarity Project ID</span>
+          <input class={inputCls} name="clarity_project_id" value={val('clarity_project_id')} /></label>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-base font-bold font-display mb-4">Social links</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {SOCIAL_FIELDS.map((key) => (
+          <label class="flex flex-col gap-1.5"><span class={`${labelCls} capitalize`}>{key}</span>
+            <input class={inputCls} name={`social_${key}`} value={socialVal(key)} placeholder="https://…" /></label>
+        ))}
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-base font-bold font-display mb-4">robots.txt & sitemap</h2>
+      <label class="flex flex-col gap-1.5 mb-4"><span class={labelCls}>robots.txt body (sitemap line is appended automatically)</span>
+        <textarea class={`${inputCls} font-mono`} name="robots_txt" rows="4">{val('robots_txt')}</textarea></label>
+      <label class="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="sitemap_enabled" checked={val('sitemap_enabled') !== 'false' && (s as Record<string, unknown> | null)?.sitemap_enabled !== false} />
+        Include sitemap reference in robots.txt
+      </label>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-base font-bold font-display mb-1">Custom scripts</h2>
+      <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+        Rendered verbatim on every public page. Administrator-only; paste only code you trust.
+      </p>
+      <div class="flex flex-col gap-4">
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Header scripts (before &lt;/head&gt;)</span>
+          <textarea class={`${inputCls} font-mono`} name="header_scripts" rows="3">{val('header_scripts')}</textarea></label>
+        <label class="flex flex-col gap-1.5"><span class={labelCls}>Footer scripts (before &lt;/body&gt;)</span>
+          <textarea class={`${inputCls} font-mono`} name="footer_scripts" rows="3">{val('footer_scripts')}</textarea></label>
+      </div>
+    </section>
+
+    <div class="flex items-center gap-4">
+      <button type="submit" class="px-6 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-colors">
+        Save settings
+      </button>
+      <span class="text-xs text-slate-400">Every save is recorded in the audit log.</span>
+    </div>
+  </form>
+</AdminLayout>

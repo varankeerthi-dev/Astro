@@ -1,0 +1,56 @@
+---
+// /search — help center + blog search (Postgres FTS via the public API).
+import Layout from '../layouts/Layout.astro';
+import { searchKb } from '../lib/cms/query';
+import { cacheHeaders, cacheTagsFor } from '../lib/cache';
+
+export const prerender = false;
+
+const q = (Astro.url.searchParams.get('q') ?? '').trim();
+
+let results: any[] = [];
+if (q) {
+  try {
+    const res = await fetch(`${Astro.url.origin}/api/search?q=${encodeURIComponent(q)}`, {
+      headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
+    });
+    if (res.ok) results = (await res.json()) ?? [];
+  } catch {
+    results = await searchKb(q, 10);
+  }
+}
+
+Astro.response.headers.set('Content-Type', 'text/html');
+if (!Astro.locals.preview) {
+  for (const [k, v] of Object.entries(cacheHeaders(cacheTagsFor('/help'), 120))) Astro.response.headers.set(k, v);
+}
+---
+<Layout title={q ? `Search: ${q}` : 'Search'} description="Search the help center and knowledge base.">
+  <section class="pt-32 pb-16 px-6 bg-white">
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-4xl md:text-5xl font-bold font-display tracking-tight text-slate-900">Search</h1>
+      <form action="/search" method="get" class="mt-6 flex gap-2" role="search">
+        <input type="search" name="q" value={q} placeholder="Search help articles…" aria-label="Search"
+          class="flex-1 border border-slate-300 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white" />
+        <button type="submit" class="px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm cursor-pointer">Search</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="px-6 pb-20">
+    <div class="max-w-3xl mx-auto">
+      {!q && <p class="text-slate-500 text-center py-16">Type a query to search the help center.</p>}
+      {q && results.length === 0 && (
+        <p class="text-slate-500 text-center py-16">No results for “{q}”. Try different keywords, or browse the <a href="/help" class="text-blue-600 no-underline font-semibold">help center</a>.</p>
+      )}
+      <div class="flex flex-col gap-4">
+        {results.map((r: any) => (
+          <a href={r.page?.slug ?? `/?q=${encodeURIComponent(q)}`} class="bg-white rounded-xl border border-slate-200/80 px-5 py-4 no-underline hover:border-blue-300 transition-colors">
+            <h2 class="font-bold font-display text-slate-900">{r.title}</h2>
+            {r.summary && <p class="mt-1 text-sm text-slate-500 leading-relaxed font-sans">{r.summary}</p>}
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</Layout>

@@ -1,0 +1,75 @@
+---
+// /help/release-notes — timeline view with version/module filters and
+// New / Improved / Fixed badges (Phase 7).
+import Layout from '../../layouts/Layout.astro';
+import { listReleaseNotes } from '../../lib/cms/query';
+import { cacheHeaders, cacheTagsFor } from '../../lib/cache';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+const version = params.get('version') ?? '';
+const module = params.get('module') ?? '';
+
+const all = await listReleaseNotes();
+const modules = [...new Set(all.map((r: any) => r.module).filter(Boolean))] as string[];
+const versions = [...new Set(all.map((r: any) => r.version).filter(Boolean))] as string[];
+
+const notes = all.filter((r: any) => (!version || r.version === version) && (!module || r.module === module));
+
+const BADGE: Record<string, string> = {
+  new: 'bg-emerald-100 text-emerald-700',
+  improved: 'bg-blue-100 text-blue-700',
+  fixed: 'bg-amber-100 text-amber-700',
+};
+
+Astro.response.headers.set('Content-Type', 'text/html');
+if (!Astro.locals.preview) {
+  for (const [k, v] of Object.entries(cacheHeaders(cacheTagsFor('/help/release-notes')))) Astro.response.headers.set(k, v);
+}
+---
+<Layout title="Release Notes" description="What is new, improved, and fixed in each release.">
+  <section class="pt-32 pb-16 px-6 bg-white">
+    <div class="max-w-4xl mx-auto">
+      <a href="/help" class="text-sm text-blue-600 font-semibold no-underline hover:text-blue-800">← Help Center</a>
+      <h1 class="mt-4 text-4xl md:text-5xl font-bold font-display tracking-tight text-slate-900">Release notes</h1>
+      <p class="mt-3 text-slate-500 font-sans">What is new, improved, and fixed in each Origin-ERP release.</p>
+
+      <form method="get" class="mt-6 flex flex-wrap gap-3">
+        <select name="version" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white">
+          <option value="">All versions</option>
+          {versions.map((v) => <option value={v} selected={version === v}>{v}</option>)}
+        </select>
+        <select name="module" class="border border-slate-300 rounded-full px-4 py-2 text-sm bg-white">
+          <option value="">All modules</option>
+          {modules.map((m) => <option value={m} selected={module === m}>{m}</option>)}
+        </select>
+        <button type="submit" class="px-5 py-2 rounded-full bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 cursor-pointer">Filter</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="px-6 pb-20">
+    <div class="max-w-3xl mx-auto">
+      {notes.length === 0 && <p class="text-slate-500 text-center py-16">No release notes match these filters.</p>}
+      <div class="relative border-l-2 border-slate-200 pl-8 ml-2 flex flex-col gap-10">
+        {notes.map((r: any) => (
+          <div class="relative">
+            <span class="absolute -left-[41px] top-1.5 w-4 h-4 rounded-full bg-white border-2 border-blue-500" />
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              {r.released_on ? new Date(r.released_on).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Upcoming'}
+              {r.version ? ` · v${r.version}` : ''}
+              {r.module ? ` · ${r.module}` : ''}
+            </p>
+            <h2 class="mt-1 text-lg font-bold font-display text-slate-900 flex items-center gap-2">
+              {r.title}
+              <span class={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${BADGE[r.badge] ?? BADGE.improved}`}>{r.badge}</span>
+            </h2>
+            {r.description && <p class="mt-2 text-sm text-slate-600 leading-relaxed font-sans">{r.description}</p>}
+            {r.article_id && <a href={`/help/release-notes`} class="text-sm font-semibold text-blue-600 hover:text-blue-800 no-underline">Read the guide →</a>}
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</Layout>
