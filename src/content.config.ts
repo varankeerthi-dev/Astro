@@ -1,17 +1,9 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 
-const blog = defineCollection({
-  loader: glob({ pattern: '**/[^_]*.md', base: './src/content/blog' }),
-  schema: z.object({
-    title: z.string(),
-    description: z.string(),
-    pubDate: z.coerce.date(),
-    author: z.string().default('Perfect ERP Team'),
-    image: z.string().optional(),
-    tags: z.array(z.string()).default([]),
-  }),
-});
+// Blog is DB-driven (src/pages/blog/* query Postgres via lib/cms/query.ts) —
+// the content collection was removed so the glob-loader doesn't warn about
+// the missing src/content/blog/ directory.
 
 const help = defineCollection({
   loader: glob({ pattern: '**/[^_]*.md', base: './src/content/help' }),
@@ -23,4 +15,4 @@ const help = defineCollection({
   }),
 });
 
-export const collections = { blog, help };
+export const collections = { help };
