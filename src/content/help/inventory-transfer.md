@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Inventory Transfers Between Warehouses"
 description: "How to safely move materials between different storage locations and sites without breaking stock balances."
 category: "Inventory"

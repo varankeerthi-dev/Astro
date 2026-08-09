@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { crudGet, crudSoftDelete, crudStatus, crudUpdate, type CrudConfig } from '../../../../lib/cms/crud';
 import { featureReleaseCfg, releaseNotesCfg } from '../../../../lib/cms/configs';
 import { json, writeAudit } from '../../../../lib/cms/helpers';
-import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { queryOne, query, dbReady } from '../../../../lib/db';
 import { purgeCacheTags } from '../../../../lib/cache';
 
 export const prerender = false;
@@ -30,10 +30,8 @@ export const POST: APIRoute = async (ctx) => {
   const body = await ctx.request.json().catch(() => null);
   const id = ctx.params.id ?? '';
 
-  if (body && ['submit','schedule','publish','unpublish','archive','restore'].includes(body.action)) return crudStatus(ctx, cfg, id);
-  if (body && body.action === 'publish') {
-    // Feature-release publish fan-out: status + destinations + ERP webhook.
-    const res = await crudStatus(ctx, cfg, id);
+  if (body && ['submit', 'schedule', 'publish', 'unpublish', 'archive', 'restore'].includes(body.action)) {
+    const res = await crudStatus(ctx, cfg, id, body);
     if (res.status !== 200) return res;
     if (kind === 'release') {
       await fanOut(ctx, id);
@@ -45,20 +43,33 @@ export const POST: APIRoute = async (ctx) => {
 
 /** After a feature release goes live: publish linked destinations + ERP webhook. */
 async function fanOut(ctx: { locals: { profile?: { id?: string } }; clientAddress: string }, releaseId: string): Promise<void> {
-  const { data: release } = await supabaseAdmin.from('feature_releases').select('*').eq('id', releaseId).single();
+  if (!dbReady) return;
+  const release = await queryOne<Record<string, unknown>>(
+    `select * from public.feature_releases where id = $1`,
+    [releaseId],
+  );
   if (!release) return;
 
   const now = new Date().toISOString();
   const actorId = ctx.locals.profile?.id;
 
   if (release.dest_release_notes && release.release_note_id) {
-    await supabaseAdmin.from('release_notes').update({ status: 'published', released_on: release.released_on ?? now.slice(0, 10) }).eq('id', release.release_note_id);
+    await query(
+      `update public.release_notes set status = 'published', released_on = $1 where id = $2`,
+      [release.released_on ?? now.slice(0, 10), release.release_note_id],
+    );
   }
   if (release.dest_announcement && release.announcement_id) {
-    await supabaseAdmin.from('announcements').update({ status: 'published', publish_at: now }).eq('id', release.announcement_id);
+    await query(
+      `update public.announcements set status = 'published', publish_at = $1 where id = $2`,
+      [now, release.announcement_id],
+    );
   }
   if (release.dest_banner && release.banner_id) {
-    await supabaseAdmin.from('banners').update({ status: 'published', publish_at: now }).eq('id', release.banner_id);
+    await query(
+      `update public.banners set status = 'published', publish_at = $1 where id = $2`,
+      [now, release.banner_id],
+    );
   }
 
   // ERP integration (badge / in-app notification) — HMAC-signed webhook.

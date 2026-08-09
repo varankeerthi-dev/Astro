@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import sharp from 'sharp';
-import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { query, queryOne, dbReady } from '../../../../lib/db';
+import { saveFile, deleteFiles } from '../../../../lib/storage';
 import { json, requireCapability, writeAudit } from '../../../../lib/cms/helpers';
 import { slugify } from '../../../../lib/utils/slug';
 
@@ -23,17 +24,26 @@ export const PATCH: APIRoute = async (ctx) => {
   if (body.folder_id !== undefined) patch.folder_id = body.folder_id ? String(body.folder_id) : null;
   if (Object.keys(patch).length === 0) return json({ error: 'nothing_to_update' }, 400);
 
-  const { data, error } = await supabaseAdmin.from('media_assets').update(patch).eq('id', id).select().single();
-  if (error) return json({ error: error.message }, 400);
-  await writeAudit({
-    actor_id: ctx.locals.profile?.id,
-    action: 'update',
-    entity: 'media',
-    entity_id: id,
-    summary: `Updated media ${data.filename}`,
-    ip: ctx.clientAddress,
-  });
-  return json(data);
+  try {
+    const set = Object.keys(patch).map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const rows = await query(
+      `update public.media_assets set ${set} where id = $${Object.keys(patch).length + 1} returning *`,
+      [...Object.values(patch), id],
+    );
+    if (!rows[0]) return json({ error: 'not_found' }, 404);
+    const data = rows[0];
+    await writeAudit({
+      actor_id: ctx.locals.profile?.id,
+      action: 'update',
+      entity: 'media',
+      entity_id: id,
+      summary: `Updated media ${data.filename}`,
+      ip: ctx.clientAddress,
+    });
+    return json(data);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 400);
+  }
 };
 
 export const POST: APIRoute = async (ctx) => {
@@ -41,7 +51,7 @@ export const POST: APIRoute = async (ctx) => {
   if (denied) return denied;
   const id = ctx.params.id ?? '';
 
-  const { data: row } = await supabaseAdmin.from('media_assets').select('*').eq('id', id).maybeSingle();
+  const row = await queryOne<Record<string, unknown>>(`select * from public.media_assets where id = $1`, [id]);
   if (!row) return json({ error: 'not_found' }, 404);
 
   const form = await ctx.request.formData();
@@ -50,61 +60,66 @@ export const POST: APIRoute = async (ctx) => {
   const buffer = Buffer.from(await file.arrayBuffer());
   const mime = file.type || 'application/octet-stream';
   const ext = extFor(mime);
-  const base = slugify(String(row.filename).replace(/\.[a-z0-9]+$/i, ''));
-  const folderPath = row.folder_id
-    ? ((await supabaseAdmin.from('media_folders').select('path').eq('id', row.folder_id).maybeSingle()).data?.path as string | undefined) ?? 'misc'
-    : 'misc';
-  const d = new Date();
-  const dir = `${folderPath}/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`.replace(/\/+/g, '/');
-  const original = `${dir}/${base}-orig.${ext}`;
 
-  const { error: upErr } = await supabaseAdmin.storage.from('media').upload(original, buffer, { contentType: mime, upsert: false });
-  if (upErr) return json({ error: upErr.message }, 400);
-
-  const variants: Record<string, string> = { original };
-  let width: number | null = null;
-  let height: number | null = null;
-  if (['jpg', 'png', 'webp'].includes(ext)) {
-    try {
-      const meta = await sharp(buffer).metadata();
-      width = meta.width ?? null;
-      height = meta.height ?? null;
-      for (const w of WIDTHS) {
-        if (width && w >= width) continue;
-        const vbuf = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer();
-        const vpath = `${dir}/${base}-${w}w.webp`;
-        await supabaseAdmin.storage.from('media').upload(vpath, vbuf, { contentType: 'image/webp', upsert: false });
-        variants[String(w)] = vpath;
-      }
-    } catch {
-      // best effort
-    }
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('media_assets')
-    .update({ storage_path: original, filename: `${base}.${ext}`, mime, bytes: buffer.length, width, height, variants })
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) return json({ error: error.message }, 400);
-
-  // best-effort cleanup of the previous files
   try {
-    await supabaseAdmin.storage.from('media').remove(Object.values((row.variants as Record<string, string>) ?? { original: row.storage_path }));
-  } catch {
-    // ignore
-  }
+    const base = slugify(String(row.filename).replace(/\.[a-z0-9]+$/i, ''));
+    const folderPath = row.folder_id
+      ? ((await queryOne<{ path: string }>(`select path from public.media_folders where id = $1`, [row.folder_id]))?.path ?? 'misc')
+      : 'misc';
+    const d = new Date();
+    const dir = `${folderPath}/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`.replace(/\/+/g, '/');
+    const original = `${dir}/${base}-orig.${ext}`;
 
-  await writeAudit({
-    actor_id: ctx.locals.profile?.id,
-    action: 'update',
-    entity: 'media',
-    entity_id: id,
-    summary: `Replaced file for ${data.filename}`,
-    ip: ctx.clientAddress,
-  });
-  return json(data);
+    await saveFile(original, buffer, mime);
+
+    const variants: Record<string, string> = { original };
+    let width: number | null = null;
+    let height: number | null = null;
+    if (['jpg', 'png', 'webp'].includes(ext)) {
+      try {
+        const meta = await sharp(buffer).metadata();
+        width = meta.width ?? null;
+        height = meta.height ?? null;
+        for (const w of WIDTHS) {
+          if (width && w >= width) continue;
+          const vbuf = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer();
+          const vpath = `${dir}/${base}-${w}w.webp`;
+          await saveFile(vpath, vbuf, 'image/webp');
+          variants[String(w)] = vpath;
+        }
+      } catch {
+        // best effort
+      }
+    }
+
+    const rows = await query(
+      `update public.media_assets
+          set storage_path = $1, filename = $2, mime = $3, bytes = $4, width = $5, height = $6, variants = $7
+        where id = $8 returning *`,
+      [original, `${base}.${ext}`, mime, buffer.length, width, height, JSON.stringify(variants), id],
+    );
+    const data = rows[0];
+
+    // best-effort cleanup of the previous files
+    try {
+      const oldVariants = (row.variants as Record<string, string> | null) ?? { original: row.storage_path };
+      await deleteFiles(Object.values(oldVariants));
+    } catch {
+      // ignore
+    }
+
+    await writeAudit({
+      actor_id: ctx.locals.profile?.id,
+      action: 'update',
+      entity: 'media',
+      entity_id: id,
+      summary: `Replaced file for ${data.filename}`,
+      ip: ctx.clientAddress,
+    });
+    return json(data);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 400);
+  }
 };
 
 export const DELETE: APIRoute = async (ctx) => {
@@ -112,30 +127,38 @@ export const DELETE: APIRoute = async (ctx) => {
   if (denied) return denied;
   const id = ctx.params.id ?? '';
 
-  const { data: usage } = await supabaseAdmin.from('media_usage').select('entity, field').eq('media_id', id);
-  if (usage && usage.length > 0) {
-    return json({ error: 'in_use', usage: usage.slice(0, 10), message: 'This file is used by published content. Remove it from those pages first.' }, 409);
-  }
-
-  const { data: row } = await supabaseAdmin.from('media_assets').select('*').eq('id', id).maybeSingle();
-  if (!row) return json({ error: 'not_found' }, 404);
-
-  const { error } = await supabaseAdmin.from('media_assets').update({ deleted_at: new Date().toISOString() }).eq('id', id);
-  if (error) return json({ error: error.message }, 500);
-
   try {
-    await supabaseAdmin.storage.from('media').remove(Object.values((row.variants as Record<string, string>) ?? { original: row.storage_path }));
-  } catch {
-    // ignore
-  }
+    const usage = await query(`select entity, field from public.media_usage where media_id = $1`, [id]);
+    if (usage.length > 0) {
+      return json({
+        error: 'in_use',
+        usage: usage.slice(0, 10),
+        message: 'This file is used by published content. Remove it from those pages first.',
+      }, 409);
+    }
 
-  await writeAudit({
-    actor_id: ctx.locals.profile?.id,
-    action: 'delete',
-    entity: 'media',
-    entity_id: id,
-    summary: `Deleted media ${row.filename}`,
-    ip: ctx.clientAddress,
-  });
-  return json({ ok: true });
+    const row = await queryOne<Record<string, unknown>>(`select * from public.media_assets where id = $1`, [id]);
+    if (!row) return json({ error: 'not_found' }, 404);
+
+    await query(`update public.media_assets set deleted_at = $1 where id = $2`, [new Date().toISOString(), id]);
+
+    try {
+      const variants = (row.variants as Record<string, string> | null) ?? { original: row.storage_path };
+      await deleteFiles(Object.values(variants));
+    } catch {
+      // ignore
+    }
+
+    await writeAudit({
+      actor_id: ctx.locals.profile?.id,
+      action: 'delete',
+      entity: 'media',
+      entity_id: id,
+      summary: `Deleted media ${row.filename}`,
+      ip: ctx.clientAddress,
+    });
+    return json({ ok: true });
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 };

@@ -2,7 +2,7 @@
 // /admin/blog — posts (markdown editor v1), categories, tags (Wave 6).
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { apiGet, apiSend, formToObject, STATUS_LABEL, STATUS_BADGE } from '../../lib/cms/admin-fetch';
-import { supabaseAdmin } from '../../lib/supabase/admin';
+import { query } from '../../lib/db';
 
 export const prerender = false;
 
@@ -62,9 +62,9 @@ try {
 } catch (e: any) { error = e?.message ?? String(e); }
 let editRow: any = null;
 if (editId) { try { editRow = await apiGet(Astro, `/api/admin/blog/${editId}`); } catch {} }
-const [{ data: categories }, { data: mediaItems }] = await Promise.all([
-  supabaseAdmin.from('blog_categories').select('id, name').order('name'),
-  supabaseAdmin.from('media_assets').select('id, filename').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
+const [categories, mediaItems] = await Promise.all([
+  query('select id, name from public.blog_categories order by name'),
+  query('select id, filename from public.media_assets where deleted_at is null order by created_at desc limit 100'),
 ]);
 const pages = Math.max(1, Math.ceil(list.total / perPage));
 const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white';

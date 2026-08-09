@@ -1,6 +1,6 @@
 // Shared server-side helpers: JSON responses, capability checks, audit log,
 // version snapshots.
-import { supabaseAdmin } from '../supabase/admin';
+import { query, queryOne, execute } from '../db';
 import { can, type Capability, type Role } from '../auth/permissions';
 
 export const json = (body: unknown, status = 200): Response =>
@@ -24,15 +24,19 @@ export async function writeAudit(entry: {
   ip?: string;
 }): Promise<void> {
   try {
-    await supabaseAdmin.from('audit_log').insert({
-      actor_id: entry.actor_id ?? null,
-      action: entry.action,
-      entity: entry.entity,
-      entity_id: entry.entity_id ?? null,
-      summary: entry.summary ?? null,
-      diff: entry.diff ?? null,
-      ip: entry.ip ?? null,
-    });
+    await execute(
+      `insert into public.audit_log (actor_id, action, entity, entity_id, summary, diff, ip)
+       values ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        entry.actor_id ?? null,
+        entry.action,
+        entry.entity,
+        entry.entity_id ?? null,
+        entry.summary ?? null,
+        entry.diff != null ? JSON.stringify(entry.diff) : null,
+        entry.ip ?? null,
+      ],
+    );
   } catch {
     // auditing is best-effort — never fail the main write because of it
   }
@@ -46,22 +50,18 @@ export async function snapshotVersion(
   actorId?: string,
 ): Promise<void> {
   try {
-    const { data } = await supabaseAdmin
-      .from('content_versions')
-      .select('version')
-      .eq('entity', entity)
-      .eq('entity_id', entityId)
-      .order('version', { ascending: false })
-      .limit(1);
-    const next = ((data?.[0]?.version as number | undefined) ?? 0) + 1;
-    await supabaseAdmin.from('content_versions').insert({
-      entity,
-      entity_id: entityId,
-      version: next,
-      kind,
-      snapshot,
-      created_by: actorId ?? null,
-    });
+    const row = await queryOne<{ version: number }>(
+      `select version from public.content_versions
+        where entity = $1 and entity_id = $2
+        order by version desc limit 1`,
+      [entity, entityId],
+    );
+    const next = (row?.version ?? 0) + 1;
+    await execute(
+      `insert into public.content_versions (entity, entity_id, version, kind, snapshot, created_by)
+       values ($1, $2, $3, $4, $5, $6)`,
+      [entity, entityId, next, kind, JSON.stringify(snapshot), actorId ?? null],
+    );
   } catch {
     // best effort
   }

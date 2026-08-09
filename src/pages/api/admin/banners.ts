@@ -13,5 +13,5 @@ export const POST: APIRoute = async (ctx) => {
   if (body && body.action === 'reorder') {
     return crudReorder(ctx, cfg, Array.isArray(body.ids) ? (body.ids as string[]) : []);
   }
-  return crudCreate(ctx, cfg);
+  return crudCreate(ctx, cfg, body);
 };

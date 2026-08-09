@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Project Milestone Billing & Invoicing"
 description: "Streamline project cash flows by raising milestone-based client invoices and tracking payments."
 category: "Finance"

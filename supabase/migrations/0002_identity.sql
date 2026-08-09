@@ -1,35 +1,27 @@
--- 0002_identity.sql — profiles (1:1 with auth.users), audit log, version history
+-- 0002_identity.sql — users (app-managed auth), profiles (1:1 with users), audit log, version history
+--
+-- Neon adaptation: Supabase Auth's auth.users is replaced by a local users
+-- table; the /admin login flow (lib/auth) verifies password_hash and mints
+-- its own session cookies.
 
--- ── profiles ────────────────────────────────────────────────────────────────
+-- ── users (auth identities, app-managed on standalone Postgres) ─────────────
+create table if not exists public.users (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  password_hash text not null,
+  full_name text not null default '',
+  role public.user_role not null default 'marketing_editor',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ── profiles (1:1 with users) ───────────────────────────────────────────────
 create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+  id uuid primary key references public.users(id) on delete cascade,
   full_name text not null default '',
   role public.user_role not null default 'marketing_editor',
   created_at timestamptz not null default now()
 );
-
--- Auto-create a profile whenever a user is added in Supabase Auth
--- (Authentication → Add user, or the /api/admin/users invite endpoint).
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.profiles (id, full_name)
-  values (
-    new.id,
-    coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(new.email, '@', 1))
-  )
-  on conflict (id) do nothing;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
 
 -- ── audit_log (append-only; written by server endpoints with the service role) ──
 create table if not exists public.audit_log (

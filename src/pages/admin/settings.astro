@@ -1,8 +1,8 @@
 ---
 // /admin/settings — Website Settings editor (administrator only).
-// Server-rendered form; saves via the service role with an audit entry.
+// Server-rendered form; saves with an audit entry.
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { supabaseAdmin, cmsServerReady } from '../../lib/supabase/admin';
+import { query, queryOne, dbReady } from '../../lib/db';
 import { can } from '../../lib/auth/permissions';
 import { bustCmsCache } from '../../lib/cms/settings';
 
@@ -25,7 +25,7 @@ const SOCIAL_FIELDS = ['linkedin', 'twitter', 'youtube', 'instagram'] as const;
 let saved = false;
 let saveError = '';
 
-if (Astro.request.method === 'POST' && cmsServerReady) {
+if (Astro.request.method === 'POST' && dbReady) {
   const form = await Astro.request.formData();
   const patch: Record<string, unknown> = {};
   for (const key of TEXT_FIELDS) patch[key] = String(form.get(key) ?? '').trim() || null;
@@ -41,32 +41,32 @@ if (Astro.request.method === 'POST' && cmsServerReady) {
   patch.updated_at = new Date().toISOString();
 
   // Audit diff: only fields that actually changed
-  const { data: before } = await supabaseAdmin.from('site_settings').select('*').eq('id', 1).single();
+  const before = await queryOne(`select * from public.site_settings where id = 1`);
   const diff: Record<string, [unknown, unknown]> = {};
   for (const [k, v] of Object.entries(patch)) {
     const old = (before as Record<string, unknown> | null)?.[k] ?? null;
     if (JSON.stringify(old) !== JSON.stringify(v)) diff[k] = [old, v];
   }
 
-  const { error } = await supabaseAdmin.from('site_settings').update(patch).eq('id', 1);
-  if (error) {
-    saveError = error.message;
-  } else {
-    await supabaseAdmin.from('audit_log').insert({
-      actor_id: profile.id,
-      action: 'update',
-      entity: 'setting',
-      summary: 'Updated Website Settings',
-      diff,
-    });
+  try {
+    const keys = Object.keys(patch);
+    const set = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    await query(`update public.site_settings set ${set} where id = 1`, keys.map((k) => patch[k]));
+    await query(
+      `insert into public.audit_log (actor_id, action, entity, summary, diff)
+       values ($1, 'update', 'setting', 'Updated Website Settings', $2)`,
+      [profile.id, JSON.stringify(diff)],
+    );
     bustCmsCache();
     saved = true;
+  } catch (e) {
+    saveError = (e as Error).message;
   }
 }
 
-const { data: s } = cmsServerReady
-  ? await supabaseAdmin.from('site_settings').select('*').eq('id', 1).maybeSingle()
-  : { data: null };
+const s = dbReady
+  ? await queryOne(`select * from public.site_settings where id = 1`).catch(() => null)
+  : null;
 const val = (key: string) => ((s as Record<string, unknown> | null)?.[key] as string) ?? '';
 const socialVal = (key: string) =>
   (((s as Record<string, unknown> | null)?.social_links as Record<string, string> | null)?.[key]) ?? '';
@@ -76,9 +76,9 @@ const inputCls =
 const labelCls = 'text-sm font-semibold text-slate-700';
 ---
 <AdminLayout title="Website Settings" active="/admin/settings">
-  {!cmsServerReady && (
+  {!dbReady && (
     <div class="mb-6 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-      SUPABASE_SERVICE_ROLE_KEY is not set — settings can't be loaded or saved. See PHASE0-SETUP.md.
+      DATABASE_URL is not set — settings can't be loaded or saved. See PHASE0-SETUP.md.
     </div>
   )}
   {saved && (

@@ -4,7 +4,7 @@
 // banner, ERP badge, in-app notification).
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { apiGet, apiSend, formToObject, STATUS_LABEL, STATUS_BADGE } from '../../lib/cms/admin-fetch';
-import { supabaseAdmin } from '../../lib/supabase/admin';
+import { query } from '../../lib/db';
 
 export const prerender = false;
 
@@ -58,10 +58,10 @@ try {
   notes = await apiGet(Astro, `/api/admin/releases?kind=note&q=${encodeURIComponent(q)}&page=${page}&perPage=${perPage}`);
   releases = await apiGet(Astro, `/api/admin/releases?kind=release&q=${encodeURIComponent(q)}&page=${page}&perPage=${perPage}`);
 } catch (e: any) { error = e?.message ?? String(e); }
-const [{ data: articles }, { data: announcements }, { data: banners }] = await Promise.all([
-  supabaseAdmin.from('kb_articles').select('id, title').is('deleted_at', null).order('updated_at', { ascending: false }).limit(200),
-  supabaseAdmin.from('announcements').select('id, title').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
-  supabaseAdmin.from('banners').select('id, title_html').is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
+const [articles, announcements, banners] = await Promise.all([
+  query('select id, title from public.kb_articles where deleted_at is null order by updated_at desc limit 200'),
+  query('select id, title from public.announcements where deleted_at is null order by created_at desc limit 100'),
+  query('select id, title_html from public.banners where deleted_at is null order by created_at desc limit 100'),
 ]);
 const pages = Math.max(1, Math.ceil(Math.max(notes.total, releases.total, 1) / perPage));
 const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white';

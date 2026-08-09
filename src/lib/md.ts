@@ -52,7 +52,10 @@ const CALLOUT_PALETTE: Record<string, string> = {
 };
 
 export function renderMarkdown(body: string): RenderedMarkdown {
-  const lines = body.split('\n');
+  // Normalize CRLF / lone CR to LF first — regexes like /^#{1,6}\s+(.*)$/
+  // can't match lines terminated by \r (`.` excludes it, `$` doesn't anchor
+  // before it), which previously made the renderer spin forever on CRLF input.
+  const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const out: string[] = [];
   const toc: RenderedMarkdown['toc'] = [];
   const taken = new Set<string>();

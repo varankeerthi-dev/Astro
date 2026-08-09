@@ -31,3 +31,6 @@ nul
 astro-dev.log
 *.log
 .turbo/
+
+# local tool cache
+.seomator/

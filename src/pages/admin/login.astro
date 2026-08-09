@@ -1,10 +1,10 @@
 ---
-// /admin/login — invite-only sign in (accounts are created in Supabase Auth
-// or via /admin/users; there is no public signup).
+// /admin/login — invite-only sign in (accounts live in the public.users
+// table, created via scripts/create-admin.mjs or /admin/users).
 import '../../styles/global.css';
-import { createClient } from '@supabase/supabase-js';
-import { ACCESS_COOKIE, getSessionProfile } from '../../lib/auth/session';
-import { supabaseAdmin } from '../../lib/supabase/admin';
+import { getSessionProfile, startSession } from '../../lib/auth/session';
+import { verifyPassword } from '../../lib/auth/passwords';
+import { query, queryOne, dbReady } from '../../lib/db';
 
 export const prerender = false;
 
@@ -16,33 +16,32 @@ let error = Astro.url.searchParams.get('error') ? 'Invalid email or password.' :
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
-  const email = String(form.get('email') ?? '').trim();
+  const email = String(form.get('email') ?? '').trim().toLowerCase();
   const password = String(form.get('password') ?? '');
-  const url = import.meta.env.PUBLIC_SUPABASE_URL as string | undefined;
-  const anon = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string | undefined;
 
-  if (!url || !anon) {
-    error = 'CMS is not configured yet — set PUBLIC_SUPABASE_URL / PUBLIC_SUPABASE_ANON_KEY.';
+  if (!dbReady) {
+    error = 'CMS is not configured yet — set DATABASE_URL (see PHASE0-SETUP.md).';
   } else {
-    const supabase = createClient(url, anon, { auth: { persistSession: false } });
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    if (authError || !data.session) {
+    try {
+      const user = await queryOne<{ id: string; password_hash: string }>(
+        `select id, password_hash from public.users where email = $1`,
+        [email],
+      );
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        error = 'Invalid email or password.';
+      } else {
+        await startSession(Astro.cookies, user.id);
+        try {
+          await query(
+            `insert into public.audit_log (action, entity, summary) values ('login', 'session', $1)`,
+            [`Sign-in: ${email}`],
+          );
+        } catch { /* auditing is best-effort */ }
+        const next = Astro.url.searchParams.get('next');
+        return Astro.redirect(next && next.startsWith('/admin') ? next : '/admin');
+      }
+    } catch {
       error = 'Invalid email or password.';
-    } else {
-      Astro.cookies.set(ACCESS_COOKIE, data.session.access_token, {
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: true,
-        maxAge: data.session.expires_in,
-      });
-      try {
-        await supabaseAdmin.from('audit_log').insert({
-          action: 'login', entity: 'session', summary: `Sign-in: ${email}`,
-        });
-      } catch { /* auditing is best-effort */ }
-      const next = Astro.url.searchParams.get('next');
-      return Astro.redirect(next && next.startsWith('/admin') ? next : '/admin');
     }
   }
 }

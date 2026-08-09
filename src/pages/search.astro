@@ -14,7 +14,10 @@ if (q) {
     const res = await fetch(`${Astro.url.origin}/api/search?q=${encodeURIComponent(q)}`, {
       headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
     });
-    if (res.ok) results = (await res.json()) ?? [];
+    if (res.ok) {
+      const data = (await res.json()) ?? {};
+      results = Array.isArray(data) ? data : (data.rows ?? []);
+    }
   } catch {
     results = await searchKb(q, 10);
   }
@@ -45,7 +48,7 @@ if (!Astro.locals.preview) {
       )}
       <div class="flex flex-col gap-4">
         {results.map((r: any) => (
-          <a href={r.page?.slug ?? `/?q=${encodeURIComponent(q)}`} class="bg-white rounded-xl border border-slate-200/80 px-5 py-4 no-underline hover:border-blue-300 transition-colors">
+          <a href={r.url ?? r.page?.slug ?? `/?q=${encodeURIComponent(q)}`} class="bg-white rounded-xl border border-slate-200/80 px-5 py-4 no-underline hover:border-blue-300 transition-colors">
             <h2 class="font-bold font-display text-slate-900">{r.title}</h2>
             {r.summary && <p class="mt-1 text-sm text-slate-500 leading-relaxed font-sans">{r.summary}</p>}
           </a>

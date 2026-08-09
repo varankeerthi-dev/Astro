@@ -12,6 +12,13 @@ create table if not exists public.kb_categories (
 );
 
 -- ── kb_articles ─────────────────────────────────────────────────────────────
+-- Immutable wrapper for array_to_string (STABLE in modern Postgres, so it cannot
+-- appear directly inside a generated column).
+create or replace function public.arr_to_text(a text[])
+returns text
+language sql immutable
+as $$ select coalesce(array_to_string(a, ' '), '') $$;
+
 create table if not exists public.kb_articles (
   id uuid primary key default gen_random_uuid(),
   page_id uuid references public.pages(id) on delete set null,
@@ -44,11 +51,11 @@ create table if not exists public.kb_articles (
   deleted_at timestamptz,
   -- Full-text search document (title + summary + body + search keywords)
   search_tsv tsvector generated always as (
-    to_tsvector('english',
+    to_tsvector('english'::regconfig,
       coalesce(title, '') || ' ' ||
       coalesce(summary, '') || ' ' ||
       coalesce(content_html, '') || ' ' ||
-      coalesce(array_to_string(keywords, ' '), ''))
+      public.arr_to_text(keywords))
   ) stored
 );
 create index if not exists kb_articles_fts on public.kb_articles using gin (search_tsv);

@@ -3,7 +3,7 @@
 // suggested-edits inbox (Phase 7).
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { apiGet, apiSend, formToObject, STATUS_LABEL, STATUS_BADGE } from '../../lib/cms/admin-fetch';
-import { supabaseAdmin } from '../../lib/supabase/admin';
+import { query } from '../../lib/db';
 
 export const prerender = false;
 
@@ -69,9 +69,9 @@ let suggestions: any[] = [];
 if (tab === 'edits') {
   try { suggestions = await apiGet(Astro, '/api/admin/kb/suggested-edits?state=open'); } catch {}
 }
-const [{ data: categories }, { data: feedback }] = await Promise.all([
-  supabaseAdmin.from('kb_categories').select('id, name, kind').order('display_order'),
-  supabaseAdmin.from('kb_feedback').select('helpful, count(id)').group('helpful'),
+const [categories, feedback] = await Promise.all([
+  query('select id, name, kind from public.kb_categories order by display_order'),
+  query("select helpful, count(*)::int as count from public.kb_feedback group by helpful"),
 ]);
 const pages = Math.max(1, Math.ceil(list.total / perPage));
 const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white';

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase/admin';
+import { query, queryOne, withTx, dbReady } from '../../../lib/db';
 import { json, requireCapability, writeAudit } from '../../../lib/cms/helpers';
+import { hashPassword } from '../../../lib/auth/passwords';
 
 export const prerender = false;
 
@@ -9,26 +10,19 @@ const ROLES = ['marketing_editor', 'publisher', 'administrator'];
 export const GET: APIRoute = async (ctx) => {
   const denied = requireCapability(ctx.locals.profile, 'users.manage');
   if (denied) return denied;
+  if (!dbReady) return json({ error: 'database_not_configured' }, 503);
 
-  const { data: users, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-  if (error) return json({ error: error.message }, 500);
-
-  const { data: profiles } = await supabaseAdmin.from('profiles').select('id, role, full_name');
-  const roleById = new Map<string, string>();
-  const nameById = new Map<string, string>();
-  for (const p of profiles ?? []) {
-    roleById.set(String(p.id), String(p.role));
-    nameById.set(String(p.id), String(p.full_name ?? ''));
+  try {
+    const rows = await query(
+      `select id, email, full_name, role, created_at
+         from public.users
+        order by created_at desc
+        limit 200`,
+    );
+    return json({ rows });
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
   }
-
-  const rows = (users?.users ?? []).map((u) => ({
-    id: u.id,
-    email: u.email,
-    full_name: (u.user_metadata?.full_name as string | undefined) ?? nameById.get(u.id) ?? '',
-    role: roleById.get(u.id) ?? 'marketing_editor',
-    created_at: u.created_at,
-  }));
-  return json({ rows });
 };
 
 export const POST: APIRoute = async (ctx) => {
@@ -36,35 +30,43 @@ export const POST: APIRoute = async (ctx) => {
   if (denied) return denied;
 
   const body = await ctx.request.json().catch(() => null);
-  const email = String(body?.email ?? '').trim();
+  const email = String(body?.email ?? '').trim().toLowerCase();
   const password = String(body?.password ?? '');
   const role = String(body?.role ?? 'marketing_editor');
-  if (!email || password.length < 8) return json({ error: 'email_and_password_required', message: 'A password of at least 8 characters is required.' }, 400);
+  if (!email || password.length < 8) {
+    return json({ error: 'email_and_password_required', message: 'A password of at least 8 characters is required.' }, 400);
+  }
   if (!ROLES.includes(role)) return json({ error: 'invalid_role' }, 400);
   const fullName = String(body?.full_name ?? '').trim();
 
-  const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: fullName ? { full_name: fullName } : {},
-  });
-  if (error) return json({ error: error.message }, 400);
-  if (!created.user) return json({ error: 'create_failed' }, 500);
+  try {
+    const created = await withTx(async (q) => {
+      const users = await q(
+        `insert into public.users (email, password_hash, full_name, role)
+         values ($1, $2, $3, $4) returning *`,
+        [email, hashPassword(password), fullName, role],
+      );
+      const user = users[0];
+      await q(
+        `insert into public.profiles (id, full_name, role)
+         values ($1, $2, $3) on conflict (id) do update set full_name = excluded.full_name, role = excluded.role`,
+        [user.id, fullName, role],
+      );
+      return user;
+    });
 
-  if (role !== 'marketing_editor') {
-    await supabaseAdmin.from('profiles').update({ role, full_name: fullName || undefined }).eq('id', created.user.id);
+    await writeAudit({
+      actor_id: ctx.locals.profile?.id,
+      action: 'create',
+      entity: 'user',
+      entity_id: created.id as string,
+      summary: `Invited ${email} as ${role}`,
+      ip: ctx.clientAddress,
+    });
+    return json({ id: created.id, email, role }, 201);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 400);
   }
-
-  await writeAudit({
-    actor_id: ctx.locals.profile?.id,
-    action: 'create',
-    entity: 'user',
-    entity_id: created.user.id,
-    summary: `Invited ${email} as ${role}`,
-    ip: ctx.clientAddress,
-  });
-  return json({ id: created.user.id, email, role }, 201);
 };
 
 export const PATCH: APIRoute = async (ctx) => {
@@ -76,16 +78,24 @@ export const PATCH: APIRoute = async (ctx) => {
   const role = String(body?.role ?? '');
   if (!id || !ROLES.includes(role)) return json({ error: 'id_and_role_required' }, 400);
 
-  const { data, error } = await supabaseAdmin.from('profiles').update({ role }).eq('id', id).select().single();
-  if (error) return json({ error: error.message }, 400);
+  try {
+    const rows = await query(
+      `update public.users set role = $1 where id = $2 returning *`,
+      [role, id],
+    );
+    if (!rows[0]) return json({ error: 'not_found' }, 404);
+    await query(`update public.profiles set role = $1 where id = $2`, [role, id]);
 
-  await writeAudit({
-    actor_id: ctx.locals.profile?.id,
-    action: 'update',
-    entity: 'user',
-    entity_id: id,
-    summary: `Role changed to ${role}`,
-    ip: ctx.clientAddress,
-  });
-  return json(data);
+    await writeAudit({
+      actor_id: ctx.locals.profile?.id,
+      action: 'update',
+      entity: 'user',
+      entity_id: id,
+      summary: `Role changed to ${role}`,
+      ip: ctx.clientAddress,
+    });
+    return json(rows[0]);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 400);
+  }
 };

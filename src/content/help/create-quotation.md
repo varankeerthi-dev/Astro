@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Creating a Professional Quotation"
 description: "A complete step-by-step guide to generating GST-compliant quotes for your clients."
 category: "Sales"

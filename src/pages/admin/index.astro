@@ -1,23 +1,24 @@
 ---
 // /admin — dashboard: content state at a glance + recent audit activity.
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { supabaseForUser } from '../../lib/supabase/server';
+import { query, dbReady } from '../../lib/db';
 import { can } from '../../lib/auth/permissions';
 
 export const prerender = false;
 
 const profile = Astro.locals.profile!;
-const supabase = supabaseForUser(Astro.cookies);
 
 interface StatusCounts { draft: number; scheduled: number; published: number; archived: number; }
 const empty: StatusCounts = { draft: 0, scheduled: 0, published: 0, archived: 0 };
 
 async function countByStatus(table: string): Promise<StatusCounts | null> {
   try {
-    const { data, error } = await supabase.from(table).select('status').is('deleted_at', null);
-    if (error) return null;
+    const rows = await query<{ status: string; n: number }>(
+      `select status, count(*)::int as n from public.${table}
+        where deleted_at is null group by status`,
+    );
     const counts = { ...empty };
-    for (const row of data ?? []) counts[(row as { status: keyof StatusCounts }).status] += 1;
+    for (const row of rows) counts[row.status as keyof StatusCounts] += row.n;
     return counts;
   } catch {
     return null; // table not migrated yet
@@ -39,13 +40,15 @@ const modules = [
 ];
 
 let audit: { id: number; action: string; entity: string; summary: string | null; created_at: string }[] = [];
-if (can(profile.role, 'audit.view')) {
-  const { data } = await supabase
-    .from('audit_log')
-    .select('id, action, entity, summary, created_at')
-    .order('created_at', { ascending: false })
-    .limit(10);
-  audit = (data ?? []) as typeof audit;
+if (can(profile.role, 'audit.view') && dbReady) {
+  try {
+    audit = await query(
+      `select id, action, entity, summary, created_at
+         from public.audit_log order by created_at desc limit 10`,
+    ) as typeof audit;
+  } catch {
+    audit = [];
+  }
 }
 
 const cmsReady = banners !== null || articles !== null;

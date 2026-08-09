@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import sharp from 'sharp';
-import { supabaseAdmin } from '../../../lib/supabase/admin';
+import { query, queryOne, dbReady } from '../../../lib/db';
+import { saveFile } from '../../../lib/storage';
 import { json, requireCapability, writeAudit } from '../../../lib/cms/helpers';
 import { slugify } from '../../../lib/utils/slug';
 
@@ -19,6 +20,7 @@ function extFor(mime: string): string {
 export const GET: APIRoute = async (ctx) => {
   const denied = requireCapability(ctx.locals.profile, 'content.edit');
   if (denied) return denied;
+  if (!dbReady) return json({ error: 'database_not_configured' }, 503);
 
   const url = new URL(ctx.url);
   const q = (url.searchParams.get('q') ?? '').trim();
@@ -26,29 +28,50 @@ export const GET: APIRoute = async (ctx) => {
   const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
   const perPage = 24;
 
-  let query = supabaseAdmin
-    .from('media_assets')
-    .select('*, folder:media_folders(path)', { count: 'exact' })
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .range((page - 1) * perPage, page * perPage - 1);
-  if (q) query = query.ilike('filename', `%${q}%`);
-  if (folderId) query = query.eq('folder_id', folderId);
+  const where: string[] = ['a.deleted_at is null'];
+  const params: unknown[] = [];
+  if (q) {
+    params.push(`%${q}%`);
+    where.push(`a.filename ilike $${params.length}`);
+  }
+  if (folderId) {
+    params.push(folderId);
+    where.push(`a.folder_id = $${params.length}`);
+  }
+  const whereSql = where.join(' and ');
 
-  const { data, error, count } = await query;
-  if (error) return json({ error: error.message }, 500);
+  try {
+    const countRow = await queryOne<{ n: string }>(
+      `select count(*) as n from public.media_assets a where ${whereSql}`,
+      params,
+    );
+    const total = Number(countRow?.n ?? 0);
 
-  const { data: usage } = await supabaseAdmin.from('media_usage').select('media_id');
-  const counts = new Map<string, number>();
-  for (const u of usage ?? []) counts.set(String(u.media_id), (counts.get(String(u.media_id)) ?? 0) + 1);
+    params.push(perPage, (page - 1) * perPage);
+    const data = await query(
+      `select a.*, jsonb_build_object('path', f.path) as folder
+         from public.media_assets a
+         left join public.media_folders f on f.id = a.folder_id
+        where ${whereSql}
+        order by a.created_at desc
+        limit $${params.length - 1} offset $${params.length}`,
+      params,
+    );
 
-  const { data: folders } = await supabaseAdmin.from('media_folders').select('*').order('path');
-  return json({
-    rows: (data ?? []).map((r) => ({ ...r, usage_count: counts.get(String(r.id)) ?? 0 })),
-    total: count ?? 0,
-    page,
-    folders: folders ?? [],
-  });
+    const usageRows = await query<{ media_id: string }>(`select media_id from public.media_usage`);
+    const counts = new Map<string, number>();
+    for (const u of usageRows) counts.set(String(u.media_id), (counts.get(String(u.media_id)) ?? 0) + 1);
+
+    const folders = await query(`select * from public.media_folders order by path`);
+    return json({
+      rows: data.map((r) => ({ ...r, usage_count: counts.get(String(r.id)) ?? 0 })),
+      total,
+      page,
+      folders,
+    });
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 };
 
 export const POST: APIRoute = async (ctx) => {
@@ -62,14 +85,20 @@ export const POST: APIRoute = async (ctx) => {
     const body = await ctx.request.json().catch(() => null);
     const name = String(body?.name ?? '').trim();
     if (!name) return json({ error: 'name_required' }, 400);
-    const parentId = body?.parent_id ? String(body.parent_id) : null;
-    const parentPath = parentId
-      ? ((await supabaseAdmin.from('media_folders').select('path').eq('id', parentId).maybeSingle()).data?.path as string | undefined) ?? ''
-      : '';
-    const path = `${parentPath}/${slugify(name)}`.replace(/\/+/g, '/');
-    const { data, error } = await supabaseAdmin.from('media_folders').insert({ name, parent_id: parentId, path }).select().single();
-    if (error) return json({ error: error.message }, 400);
-    return json(data, 201);
+    try {
+      const parentId = body?.parent_id ? String(body.parent_id) : null;
+      const parentPath = parentId
+        ? ((await queryOne<{ path: string }>(`select path from public.media_folders where id = $1`, [parentId]))?.path ?? '')
+        : '';
+      const path = `${parentPath}/${slugify(name)}`.replace(/\/+/g, '/');
+      const rows = await query(
+        `insert into public.media_folders (name, parent_id, path) values ($1, $2, $3) returning *`,
+        [name, parentId, path],
+      );
+      return json(rows[0], 201);
+    } catch (e) {
+      return json({ error: (e as Error).message }, 400);
+    }
   }
 
   // Multipart → upload + sharp variants
@@ -83,63 +112,58 @@ export const POST: APIRoute = async (ctx) => {
   const mime = file.type || 'application/octet-stream';
   const ext = extFor(mime);
 
-  const folderPath = folderId
-    ? ((await supabaseAdmin.from('media_folders').select('path').eq('id', folderId).maybeSingle()).data?.path as string | undefined) ?? 'misc'
-    : 'misc';
-  const base = slugify((file.name ?? 'file').replace(/\.[a-z0-9]+$/i, ''));
-  const d = new Date();
-  const dir = `${folderPath}/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`.replace(/\/+/g, '/');
-  const original = `${dir}/${base}-orig.${ext}`;
+  try {
+    const folderPath = folderId
+      ? ((await queryOne<{ path: string }>(`select path from public.media_folders where id = $1`, [folderId]))?.path ?? 'misc')
+      : 'misc';
+    const base = slugify((file.name ?? 'file').replace(/\.[a-z0-9]+$/i, ''));
+    const d = new Date();
+    const dir = `${folderPath}/${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`.replace(/\/+/g, '/');
+    const original = `${dir}/${base}-orig.${ext}`;
 
-  const { error: upErr } = await supabaseAdmin.storage.from('media').upload(original, buffer, { contentType: mime, upsert: false });
-  if (upErr) return json({ error: upErr.message }, 400);
+    await saveFile(original, buffer, mime);
 
-  const variants: Record<string, string> = { original };
-  let width: number | null = null;
-  let height: number | null = null;
-  if (['jpg', 'png', 'webp'].includes(ext)) {
-    try {
-      const meta = await sharp(buffer).metadata();
-      width = meta.width ?? null;
-      height = meta.height ?? null;
-      for (const w of WIDTHS) {
-        if (width && w >= width) continue;
-        const vbuf = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer();
-        const vpath = `${dir}/${base}-${w}w.webp`;
-        await supabaseAdmin.storage.from('media').upload(vpath, vbuf, { contentType: 'image/webp', upsert: false });
-        variants[String(w)] = vpath;
+    const variants: Record<string, string> = { original };
+    let width: number | null = null;
+    let height: number | null = null;
+    if (['jpg', 'png', 'webp'].includes(ext)) {
+      try {
+        const meta = await sharp(buffer).metadata();
+        width = meta.width ?? null;
+        height = meta.height ?? null;
+        for (const w of WIDTHS) {
+          if (width && w >= width) continue;
+          const vbuf = await sharp(buffer).resize({ width: w }).webp({ quality: 80 }).toBuffer();
+          const vpath = `${dir}/${base}-${w}w.webp`;
+          await saveFile(vpath, vbuf, 'image/webp');
+          variants[String(w)] = vpath;
+        }
+      } catch {
+        // metadata/variants are best-effort — the original is already stored
       }
-    } catch {
-      // metadata/variants are best-effort — the original is already stored
     }
+
+    const rows = await query(
+      `insert into public.media_assets
+         (bucket, storage_path, folder_id, filename, mime, bytes, width, height, alt_text, variants, uploaded_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning *`,
+      [
+        'media', original, folderId, `${base}.${ext}`, mime, buffer.length,
+        width, height, alt || null, JSON.stringify(variants), ctx.locals.profile?.id ?? null,
+      ],
+    );
+    const data = rows[0];
+
+    await writeAudit({
+      actor_id: ctx.locals.profile?.id,
+      action: 'create',
+      entity: 'media',
+      entity_id: data.id as string,
+      summary: `Uploaded ${data.filename}`,
+      ip: ctx.clientAddress,
+    });
+    return json(data, 201);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 400);
   }
-
-  const { data, error } = await supabaseAdmin
-    .from('media_assets')
-    .insert({
-      bucket: 'media',
-      storage_path: original,
-      folder_id: folderId,
-      filename: `${base}.${ext}`,
-      mime,
-      bytes: buffer.length,
-      width,
-      height,
-      alt_text: alt || null,
-      variants,
-      uploaded_by: ctx.locals.profile?.id ?? null,
-    })
-    .select()
-    .single();
-  if (error) return json({ error: error.message }, 400);
-
-  await writeAudit({
-    actor_id: ctx.locals.profile?.id,
-    action: 'create',
-    entity: 'media',
-    entity_id: data.id as string,
-    summary: `Uploaded ${data.filename}`,
-    ip: ctx.clientAddress,
-  });
-  return json(data, 201);
 };

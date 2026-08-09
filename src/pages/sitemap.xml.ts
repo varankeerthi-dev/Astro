@@ -1,7 +1,7 @@
 // Dynamic sitemap — built from the pages table so DB-driven routes (blog,
 // locations, KB articles) are included automatically as modules ship.
 import type { APIRoute } from 'astro';
-import { supabaseAdmin, cmsServerReady } from '../lib/supabase/admin';
+import { query, dbReady } from '../lib/db';
 
 export const prerender = false;
 
@@ -25,18 +25,17 @@ export const GET: APIRoute = async () => {
   const base = (import.meta.env.SITE ?? 'https://perfecterp.com').replace(/\/$/, '');
 
   let urls: { loc: string; lastmod?: string; priority: string }[] = [];
-  if (cmsServerReady) {
+  if (dbReady) {
     try {
-      const { data } = await supabaseAdmin
-        .from('pages')
-        .select('slug, page_type, updated_at')
-        .eq('status', 'published')
-        .is('deleted_at', null)
-        .order('slug');
-      urls = (data ?? []).map((p) => ({
+      const rows = await query<{ slug: string; page_type: string; updated_at: string | null }>(
+        `select slug, page_type, updated_at from public.pages
+          where status = 'published' and deleted_at is null
+          order by slug`,
+      );
+      urls = rows.map((p) => ({
         loc: `${base}${p.slug === '/' ? '/' : p.slug.replace(/\/+$/, '') + '/'}`,
         lastmod: p.updated_at ? String(p.updated_at).slice(0, 10) : undefined,
-        priority: PRIORITY[p.page_type as string] ?? '0.5',
+        priority: PRIORITY[p.page_type] ?? '0.5',
       }));
     } catch {
       // fall through to the static minimum below

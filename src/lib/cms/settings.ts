@@ -3,7 +3,7 @@
 //     so the site builds and renders exactly as before the CMS existed;
 //  2. a short in-memory cache — one settings read per minute per serverless
 //     instance, not per component per request.
-import { supabaseAdmin, cmsServerReady } from '../supabase/admin';
+import { query, queryOne, dbReady } from '../db';
 
 export interface SiteSettings {
   site_name?: string | null;
@@ -44,15 +44,11 @@ export function bustCmsCache(): void {
 }
 
 export async function getSiteSettings(): Promise<SiteSettings | null> {
-  if (!cmsServerReady) return null;
+  if (!dbReady) return null;
   if (settingsCache && Date.now() - settingsCache.at < TTL_MS) return settingsCache.value;
   try {
-    const { data, error } = await supabaseAdmin
-      .from('site_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
-    const value = error ? null : (data as SiteSettings | null);
+    const row = await queryOne<SiteSettings>(`select * from public.site_settings where id = 1`);
+    const value = row ?? null;
     settingsCache = { at: Date.now(), value };
     return value;
   } catch {
@@ -61,18 +57,17 @@ export async function getSiteSettings(): Promise<SiteSettings | null> {
 }
 
 export async function getFooterLinks(): Promise<FooterLink[]> {
-  if (!cmsServerReady) return [];
+  if (!dbReady) return [];
   if (linksCache && Date.now() - linksCache.at < TTL_MS) return linksCache.value;
   try {
-    const { data, error } = await supabaseAdmin
-      .from('footer_links')
-      .select('id, column_name, label, url, display_order')
-      .eq('is_active', true)
-      .order('column_name')
-      .order('display_order');
-    const value = error ? [] : ((data ?? []) as FooterLink[]);
-    linksCache = { at: Date.now(), value };
-    return value;
+    const rows = await query<FooterLink>(
+      `select id, column_name, label, url, display_order
+         from public.footer_links
+        where is_active = true
+        order by column_name, display_order`,
+    );
+    linksCache = { at: Date.now(), value: rows };
+    return rows;
   } catch {
     return [];
   }

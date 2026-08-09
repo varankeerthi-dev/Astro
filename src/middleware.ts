@@ -2,7 +2,7 @@
 // and the CMS redirect map as a 404 fallback (legacy perfecterp.com URLs).
 import { defineMiddleware } from 'astro:middleware';
 import { getSessionProfile, PREVIEW_COOKIE } from './lib/auth/session';
-import { supabaseAdmin, cmsServerReady } from './lib/supabase/admin';
+import { queryOne, dbReady } from './lib/db';
 
 const ADMIN_PREFIX = '/admin';
 const ADMIN_API_PREFIX = '/api/admin';
@@ -37,15 +37,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const response = await next();
 
   // ── CMS redirect map as a 404 fallback ────────────────────────────────────
-  if (response.status === 404 && !pathname.startsWith('/api/') && cmsServerReady) {
+  if (response.status === 404 && !pathname.startsWith('/api/') && dbReady) {
     try {
-      const { data } = await supabaseAdmin
-        .from('redirects')
-        .select('to_path, status_code')
-        .eq('from_path', pathname)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (data) return context.redirect(data.to_path, data.status_code === 302 ? 302 : 301);
+      const row = await queryOne<{ to_path: string; status_code: number }>(
+        `select to_path, status_code from public.redirects
+          where from_path = $1 and is_active = true`,
+        [pathname],
+      );
+      if (row) return context.redirect(row.to_path, row.status_code === 302 ? 302 : 301);
     } catch {
       // redirects table not reachable — fall through to the plain 404
     }

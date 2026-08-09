@@ -2,9 +2,9 @@
 // expired publish windows. Read-time window evaluation keeps the public site
 // correct even between cron runs; this only does bookkeeping + cache purge.
 // Trigger: Vercel Cron (every 5 min) or any scheduler calling with the
-// CRON_SECRET bearer token.
+// CRON_SECRET bearer token. Also purges expired sessions.
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase/admin';
+import { query, execute, dbReady } from '../../../lib/db';
 import { json, writeAudit } from '../../../lib/cms/helpers';
 import { purgeCacheTags } from '../../../lib/cache';
 
@@ -26,6 +26,7 @@ export const GET: APIRoute = async ({ request, clientAddress }) => {
   const cronSecret = import.meta.env.CRON_SECRET as string | undefined;
   const authed = isVercelCron || (cronSecret ? bearer === `Bearer ${cronSecret}` : false);
   if (!authed) return json({ error: 'forbidden' }, 403);
+  if (!dbReady) return json({ error: 'database_not_configured' }, 503);
 
   const now = new Date().toISOString();
   const published: Record<string, number> = {};
@@ -33,25 +34,34 @@ export const GET: APIRoute = async ({ request, clientAddress }) => {
   const tags = new Set<string>();
 
   for (const { t, tags: tableTags, window } of TABLES) {
-    const { data: due, error } = await supabaseAdmin
-      .from(t)
-      .update({ status: 'published' })
-      .eq('status', 'scheduled')
-      .lte('publish_at', now)
-      .select('id');
-    published[t] = due?.length ?? 0;
-    if (error) published[t] = -1;
+    try {
+      const due = await query(
+        `update public.${t} set status = 'published'
+          where status = 'scheduled' and publish_at <= $1
+          returning id`,
+        [now],
+      );
+      published[t] = due.length;
 
-    if (window) {
-      const { data: gone } = await supabaseAdmin
-        .from(t)
-        .update({ status: 'archived' })
-        .eq('status', 'published')
-        .lte('unpublish_at', now)
-        .select('id');
-      expired[t] = gone?.length ?? 0;
+      if (window) {
+        const gone = await query(
+          `update public.${t} set status = 'archived'
+            where status = 'published' and unpublish_at <= $1
+            returning id`,
+          [now],
+        );
+        expired[t] = gone.length;
+      }
+    } catch {
+      published[t] = -1;
     }
     for (const tag of tableTags) tags.add(tag);
+  }
+
+  try {
+    await execute(`delete from public.sessions where expires_at <= now()`);
+  } catch {
+    /* best effort */
   }
 
   await writeAudit({

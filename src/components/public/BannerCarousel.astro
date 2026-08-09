@@ -3,15 +3,18 @@
 // Slides fade via a tiny vanilla script; images are lazy, alt-aware,
 // and the overlay text is real HTML (never baked into the image).
 import { getLiveBanners, mediaUrl } from '../../lib/cms/query';
-import { supabaseAdmin } from '../../lib/supabase/admin';
+import { query } from '../../lib/db';
 
 const banners = await getLiveBanners();
 const mediaIds = banners.flatMap((b) => [b.desktop_media_id, b.mobile_media_id].filter(Boolean));
-const { data: media } = mediaIds.length
-  ? await supabaseAdmin.from('media_assets').select('id, storage_path, alt_text').in('id', mediaIds)
-  : { data: [] };
-const pathOf = (id: string | null) => media?.find((m) => m.id === id)?.storage_path ?? null;
-const altOf = (id: string | null) => media?.find((m) => m.id === id)?.alt_text ?? '';
+const media = mediaIds.length
+  ? await query<{ id: string; storage_path: string; alt_text: string | null }>(
+      `select id, storage_path, alt_text from public.media_assets where id = any($1)`,
+      [mediaIds],
+    )
+  : [];
+const pathOf = (id: string | null) => media.find((m) => m.id === id)?.storage_path ?? null;
+const altOf = (id: string | null) => media.find((m) => m.id === id)?.alt_text ?? '';
 const slides = banners.filter((b) => pathOf(b.desktop_media_id));
 ---
 {slides.length > 0 && (

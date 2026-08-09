@@ -1,14 +1,18 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../../lib/supabase/admin';
+import { query, dbReady } from '../../../../lib/db';
 import { json, requireCapability } from '../../../../lib/cms/helpers';
 import { slugify } from '../../../../lib/utils/slug';
 
 export const prerender = false;
 
 export const GET: APIRoute = async () => {
-  const { data, error } = await supabaseAdmin.from('blog_tags').select('id, name, slug').order('name');
-  if (error) return json({ error: error.message }, 500);
-  return json(data ?? []);
+  if (!dbReady) return json({ error: 'database_not_configured' }, 503);
+  try {
+    const rows = await query(`select id, name, slug from public.blog_tags order by name`);
+    return json(rows);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
 };
 
 export const POST: APIRoute = async (ctx) => {
@@ -17,10 +21,13 @@ export const POST: APIRoute = async (ctx) => {
   const body = await ctx.request.json().catch(() => null);
   const name = String(body?.name ?? '').trim();
   if (!name) return json({ error: 'name_required' }, 400);
-  const { data, error } = await supabaseAdmin.from('blog_tags').insert({
-    name,
-    slug: slugify(name),
-  }).select().single();
-  if (error) return json({ error: error.message }, 400);
-  return json(data, 201);
+  try {
+    const rows = await query(
+      `insert into public.blog_tags (name, slug) values ($1, $2) returning *`,
+      [name, slugify(name)],
+    );
+    return json(rows[0], 201);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 400);
+  }
 };

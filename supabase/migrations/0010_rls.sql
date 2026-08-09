@@ -7,6 +7,30 @@
 --                   service role, so versioning + audit + cache purge can't be skipped.
 --   exceptions    → kb_feedback / kb_suggested_edits accept public INSERTs (reader forms).
 
+-- ── standalone-Postgres auth shim (Neon adaptation) ─────────────────────────
+-- Supabase exposes auth.uid()/auth.jwt() and the anon/authenticated roles.
+-- On Neon we create equivalent roles + functions reading a per-request session
+-- claim (set via set_config by lib/db when a signed-in admin runs a query).
+-- The app connects as the database owner, so RLS is bypassed in practice;
+-- policies remain as documented defense-in-depth.
+do $$ begin
+  if not exists (select from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+end $$;
+
+create schema if not exists auth;
+create or replace function auth.uid() returns uuid
+language sql stable
+as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+
+create or replace function auth.jwt() returns jsonb
+language sql stable
+as $$ select nullif(current_setting('request.jwt.claims', true), '')::jsonb $$;
+
 -- ── role helper (security definer avoids RLS recursion on profiles) ─────────
 create or replace function public.current_user_role()
 returns public.user_role
@@ -238,38 +262,6 @@ grant select on all tables in schema public to anon;
 grant select on all tables in schema public to authenticated;
 grant insert on public.kb_feedback, public.kb_suggested_edits to anon, authenticated;
 
--- ── storage buckets ─────────────────────────────────────────────────────────
-insert into storage.buckets (id, name, public)
-values ('media', 'media', true)
-on conflict (id) do nothing;
-
-insert into storage.buckets (id, name, public)
-values ('media-private', 'media-private', false)
-on conflict (id) do nothing;
-
--- Public read of the media bucket; staff-only read of media-private;
--- writes for authenticated staff (uploads are signed-URL flows from /api/admin/media/upload).
-drop policy if exists media_public_read on storage.objects;
-create policy media_public_read on storage.objects
-  for select to anon, authenticated
-  using (bucket_id = 'media');
-
-drop policy if exists media_private_staff_read on storage.objects;
-create policy media_private_staff_read on storage.objects
-  for select to authenticated
-  using (bucket_id = 'media-private');
-
-drop policy if exists media_staff_insert on storage.objects;
-create policy media_staff_insert on storage.objects
-  for insert to authenticated
-  with check (bucket_id in ('media','media-private'));
-
-drop policy if exists media_staff_update on storage.objects;
-create policy media_staff_update on storage.objects
-  for update to authenticated
-  using (bucket_id in ('media','media-private'));
-
-drop policy if exists media_staff_delete on storage.objects;
-create policy media_staff_delete on storage.objects
-  for delete to authenticated
-  using (bucket_id in ('media','media-private'));
+-- ── storage (Neon adaptation) ───────────────────────────────────────────────
+-- Supabase Storage buckets/policies are removed: media files move to object
+-- storage (Cloudflare R2 / S3) with metadata tracked in media_assets.

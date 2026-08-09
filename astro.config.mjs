@@ -10,6 +10,15 @@ export default defineConfig({
   site: 'https://perfecterp.com',
   adapter: vercel(),
   integrations: [react()],
+  security: {
+    // The CMS admin (/admin, /api/admin) is protected by its own session-cookie
+    // auth guard in src/middleware.ts; the public feedback/search endpoints
+    // accept cross-origin POSTs by design. Astro's default Origin check would
+    // 403 every server-rendered admin form POST (e.g. /admin/login), so it is
+    // disabled here — CSRF protection for admin mutations is handled by the
+    // httpOnly session cookie + SameSite=Lax.
+    checkOrigin: false,
+  },
   vite: {
     plugins: [tailwind()]
   }

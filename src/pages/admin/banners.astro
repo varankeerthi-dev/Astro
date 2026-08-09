@@ -3,7 +3,7 @@
 // publish/schedule/archive/duplicate/delete, drag-order up/down buttons.
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { apiGet, apiSend, formToObject, STATUS_LABEL, STATUS_BADGE } from '../../lib/cms/admin-fetch';
-import { supabaseAdmin } from '../../lib/supabase/admin';
+import { query } from '../../lib/db';
 
 export const prerender = false;
 
@@ -86,9 +86,7 @@ if (editId) {
     editRow = await apiGet(Astro, `/api/admin/banners/${editId}`);
   } catch {}
 }
-const { data: mediaItems } = await supabaseAdmin
-  .from('media_assets').select('id, filename').is('deleted_at', null)
-  .order('created_at', { ascending: false }).limit(100);
+const mediaItems = await query('select id, filename from public.media_assets where deleted_at is null order by created_at desc limit 100');
 const mediaOptions = mediaItems ?? [];
 const pages = Math.max(1, Math.ceil(list.total / perPage));
 const inputCls = 'border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-white';

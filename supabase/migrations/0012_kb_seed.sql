@@ -6,7 +6,7 @@ insert into public.kb_articles (
   category_id, reading_time_min, keywords, status, created_at, updated_at
 )
 select p.id,
-'user_guide',
+'user_guide'::public.kb_kind,
   'Creating a Professional Quotation',
   'A complete step-by-step guide to generating GST-compliant quotes for your clients.',
   'Generating a proposal is the first critical step in your project workflow. Perfect ERP makes this fast, structured, and compliant.
@@ -53,11 +53,14 @@ Under **Settings > Document Templates**, you can choose between:
 </ul>',
   (select id from public.kb_categories where slug = 'sales-billing'),
   1,
-  '{}',
-  'published', now(), now()
+  '{}'::text[],
+  'published'::public.content_status, now(), now()
+from public.pages p
+join (values ('/help/create-quotation')) as v(slug) on v.slug = p.slug
+where not exists (select 1 from public.kb_articles k where k.page_id = p.id)
   union all
   select p.id,
-  'user_guide',
+  'user_guide'::public.kb_kind,
   'Inventory Transfers Between Warehouses',
   'How to safely move materials between different storage locations and sites without breaking stock balances.',
   'Managing materials across multiple locations is critical. Perfect ERP provides a clean mechanism to handle transfers.
@@ -96,11 +99,14 @@ After a transfer reaches its destination, the site engineer should verify the qu
 <p>After a transfer reaches its destination, the site engineer should verify the quantities and mark the transfer as <strong>Received</strong> to reconcile stock logs.</p>',
   (select id from public.kb_categories where slug = 'inventory-operations'),
   1,
-  '{}',
-  'published', now(), now()
+  '{}'::text[],
+  'published'::public.content_status, now(), now()
+from public.pages p
+join (values ('/help/inventory-transfer')) as v(slug) on v.slug = p.slug
+where not exists (select 1 from public.kb_articles k where k.page_id = p.id)
   union all
   select p.id,
-  'user_guide',
+  'user_guide'::public.kb_kind,
   'Project Milestone Billing & Invoicing',
   'Streamline project cash flows by raising milestone-based client invoices and tracking payments.',
   'Milestone billing allows your company to charge clients as the work proceeds, rather than waiting for full execution completion.
@@ -130,11 +136,14 @@ The invoice will automatically show up under the client''s outstanding ledger ba
 <p>The invoice will automatically show up under the client&#x27;s outstanding ledger balance.</p>',
   (select id from public.kb_categories where slug = 'sales-billing'),
   1,
-  '{}',
-  'published', now(), now()
+  '{}'::text[],
+  'published'::public.content_status, now(), now()
+from public.pages p
+join (values ('/help/project-billing')) as v(slug) on v.slug = p.slug
+where not exists (select 1 from public.kb_articles k where k.page_id = p.id)
   union all
   select p.id,
-  'user_guide',
+  'user_guide'::public.kb_kind,
   'Site Visit Management & Field Operations',
   'End-to-end guide for planning, executing, and closing site visits with check-in/out, measurements, testing, sign-off, and follow-ups.',
   'Site visits are the bridge between your office and the field. Every visit — whether a survey, installation, inspection, or handover — generates artifacts that flow into projects, client communication, approvals, and financial records.
@@ -458,17 +467,9 @@ Site visits connect to these areas of the system:
 </tbody></table>',
   (select id from public.kb_categories where slug = 'field-operations'),
   6,
-  '{}',
-  'published', now(), now()
-
+  '{}'::text[],
+  'published'::public.content_status, now(), now()
 from public.pages p
-join (values
-  ('/help/create-quotation', 0),
-  ('/help/inventory-transfer', 1),
-  ('/help/project-billing', 2),
-  ('/help/site-visit-management', 3)
-) as v(slug, ord) on v.slug = p.slug
-where not exists (
-  select 1 from public.kb_articles k where k.page_id = p.id
-)
+join (values ('/help/site-visit-management')) as v(slug) on v.slug = p.slug
+where not exists (select 1 from public.kb_articles k where k.page_id = p.id)
 on conflict do nothing;

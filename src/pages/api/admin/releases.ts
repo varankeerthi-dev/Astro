@@ -17,8 +17,8 @@ export const POST: APIRoute = async (ctx) => {
   const cfg: CrudConfig = kind === 'note' ? releaseNotesCfg : featureReleaseCfg;
   if (kind === 'note') {
     // release notes are published directly by the feature-release flow; keep drafts here
-    return crudCreate(ctx, cfg);
+    return crudCreate(ctx, cfg, body);
   }
   // feature releases: destinations live in the composer (releases/[id].astro)
-  return crudCreate(ctx, cfg);
+  return crudCreate(ctx, cfg, body);
 };
