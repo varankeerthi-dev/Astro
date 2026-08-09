@@ -4,9 +4,12 @@
 // install (Vercel)" bug class: e.g. @neondatabase/serverless and sharp were
 // in node_modules/lockfile but missing from package.json.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname;
+// fileURLToPath handles Windows drive letters (new URL().pathname gives
+// /C:/... which turns into a bogus C:\C:\... path on win32).
+const root = fileURLToPath(new URL('..', import.meta.url));
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const declared = new Set([
   ...Object.keys(pkg.dependencies ?? {}),
